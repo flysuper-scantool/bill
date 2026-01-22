@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>輔導紀錄 AI 潤飾助手</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans TC', sans-serif; }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(229, 231, 235, 0.5);
+        }
+        /* Loading Spinner */
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3b82f6;
+            width: 20px;
+            height: 20px;
+            -webkit-animation: spin 1s linear infinite; /* Safari */
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Fade in animation */
+        .fade-in {
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        /* Recording Pulse Animation */
+        .pulse-red {
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+            animation: pulse-red 1.5s infinite cubic-bezier(0.66, 0, 0, 1);
+        }
+        @keyframes pulse-red {
+            to {
+                box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+            }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-heart-pulse text-blue-600 text-xl"></i>
+                <h1 class="font-bold text-lg text-slate-700">輔導紀錄 AI 助手</h1>
+            </div>
+            <button onclick="toggleSettings()" class="text-slate-500 hover:text-blue-600 transition p-2 rounded-full hover:bg-slate-100">
+                <i class="fa-solid fa-gear text-lg"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-5xl mx-auto px-4 py-6 w-full space-y-6">
+
+        <!-- API Key Settings Panel (Hidden by default unless no key) -->
+        <div id="settingsPanel" class="hidden glass-panel rounded-xl shadow-lg p-6 mb-6 border-l-4 border-blue-500 fade-in">
+            <h2 class="text-lg font-bold mb-3 flex items-center gap-2">
+                <i class="fa-solid fa-key"></i> 設定 API Key
+            </h2>
+            <p class="text-sm text-slate-500 mb-4">
+                請輸入您的 Google Gemini API Key。金鑰將僅儲存在您瀏覽器的 IndexedDB 中，不會上傳至任何第三方伺服器。<br>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">取得 API Key</a>
+            </p>
+            <div class="flex gap-2 flex-wrap">
+                <input type="password" id="apiKeyInput" placeholder="貼上您的 API Key (AIzaSy...)" 
+                    class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition">
+                <button onclick="saveApiKey()" class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition shadow-sm font-medium">儲存</button>
+                <button onclick="clearApiKey()" class="bg-red-50 text-red-600 px-4 py-2 rounded-lg hover:bg-red-100 transition border border-red-200">刪除金鑰</button>
+            </div>
+            <p id="keyStatus" class="mt-2 text-sm font-medium"></p>
+        </div>
+
+        <!-- Input Section -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-semibold text-slate-700">
+                    原始口語/事件敘述 
+                    <span class="text-xs font-normal text-slate-400 ml-2">(可多次編輯後重新潤飾)</span>
+                </label>
+                <span id="recordingStatus" class="text-xs font-medium text-red-500 hidden items-center gap-1 animate-pulse">
+                    <i class="fa-solid fa-circle text-[8px]"></i> 正在聆聽...
+                </span>
+            </div>
+            
+            <div class="relative">
+                <textarea id="rawInput" rows="5" placeholder="請在此輸入或點擊右下角麥克風按鈕開始說話..." 
+                    class="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 pr-12 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition resize-none"></textarea>
+                
+                <!-- Mic Button -->
+                <button id="micBtn" onclick="toggleRecording()" class="absolute bottom-3 right-3 bg-white text-slate-500 p-2 rounded-full shadow-md border border-slate-200 hover:bg-slate-100 hover:text-blue-600 transition focus:outline-none z-10" title="語音輸入">
+                    <i id="micIcon" class="fa-solid fa-microphone"></i>
+                </button>
+            </div>
+            
+            <div class="mt-4 flex justify-end">
+                <button id="processBtn" onclick="processWithAI()" class="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-2.5 rounded-lg hover:opacity-90 transition shadow-md flex items-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed">
+                    <span id="btnIcon"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                    <span id="btnText">AI 潤飾紀錄</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Result Section (Generated by AI) -->
+        <div id="resultSection" class="hidden bg-indigo-50 rounded-xl shadow-inner p-6 border border-indigo-100 fade-in">
+            
+            <!-- AI Question/Alert Box (Interactive) -->
+            <div id="aiQuestionBox" class="hidden mb-4 bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r shadow-sm fade-in">
+                <div class="flex flex-col gap-3">
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <i class="fa-solid fa-circle-question text-amber-400 mt-0.5"></i>
+                        </div>
+                        <div class="ml-3">
+                            <h3 class="text-sm font-bold text-amber-800">AI 需要您補充以下資訊以完善紀錄：</h3>
+                            <div class="mt-1 text-sm text-amber-800 leading-relaxed" id="aiQuestionText"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Answer Input Area -->
+                    <div class="pl-8">
+                        <textarea id="clarificationInput" rows="2" placeholder="請在此輸入補充說明來回答 AI 的提問..." 
+                            class="w-full bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition placeholder-amber-300 text-slate-700"></textarea>
+                        <button id="clarifyBtn" onclick="submitClarification()" class="mt-2 bg-amber-500 text-white px-4 py-2 rounded-md hover:bg-amber-600 transition text-sm font-medium shadow-sm flex items-center gap-2">
+                            <i class="fa-solid fa-reply"></i> 提交補充並重新潤飾
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center mb-2">
+                <label class="block text-sm font-semibold text-indigo-800">AI 潤飾結果 (可編輯)</label>
+                <span class="text-xs text-indigo-500 bg-white px-2 py-1 rounded-full border border-indigo-200">請確認事實無誤</span>
+            </div>
+            <textarea id="refinedOutput" rows="8" 
+                class="w-full bg-white border border-indigo-200 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition"></textarea>
+            
+            <div class="mt-4 flex justify-end gap-3">
+                <button onclick="cancelEdit()" class="px-4 py-2 text-slate-500 hover:text-slate-700 transition">取消 / 隱藏</button>
+                <button onclick="saveRecord()" class="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition shadow-sm font-medium flex items-center gap-2">
+                    <i class="fa-solid fa-floppy-disk"></i> 寫入資料庫
+                </button>
+            </div>
+        </div>
+
+        <!-- History List -->
+        <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div class="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-clock-rotate-left"></i> 紀錄列表
+                </h3>
+                <button onclick="exportToCSV()" class="text-sm bg-white border border-slate-300 text-slate-700 px-3 py-1.5 rounded hover:bg-slate-50 transition flex items-center gap-2">
+                    <i class="fa-solid fa-file-csv text-green-600"></i> 匯出 CSV
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 text-slate-500 uppercase font-medium">
+                        <tr>
+                            <th class="px-6 py-3 w-24">日期</th>
+                            <th class="px-6 py-3">原始口述</th>
+                            <th class="px-6 py-3">潤飾後紀錄</th>
+                            <th class="px-6 py-3 w-20 text-center">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsList" class="divide-y divide-slate-100">
+                        <!-- Records will be injected here -->
+                        <tr>
+                            <td colspan="4" class="px-6 py-8 text-center text-slate-400">目前尚無紀錄</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="fixed bottom-5 right-5 transform translate-y-20 opacity-0 transition-all duration-300 z-50 bg-slate-800 text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-3">
+        <i id="toastIcon" class="fa-solid fa-circle-check text-green-400"></i>
+        <span id="toastMsg">操作成功</span>
+    </div>
+
+    <script>
+        // --- IndexedDB Configuration ---
+        const DB_NAME = 'CounselingHelperDB';
+        const DB_VERSION = 1;
+        const STORE_SETTINGS = 'settings';
+        const STORE_RECORDS = 'records';
+
+        let db;
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', async () => {
+            await initDB();
+            checkApiKey();
+            loadRecords();
+            initSpeechRecognition(); // Initialize Web Speech API
+        });
+
+        // --- Database Functions ---
+        function initDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+                request.onupgradeneeded = (event) => {
+                    db = event.target.result;
+                    if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
+                        db.createObjectStore(STORE_SETTINGS, { keyPath: 'key' });
+                    }
+                    if (!db.objectStoreNames.contains(STORE_RECORDS)) {
+                        const recordStore = db.createObjectStore(STORE_RECORDS, { keyPath: 'id', autoIncrement: true });
+                        recordStore.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+                };
+
+                request.onsuccess = (event) => {
+                    db = event.target.result;
+                    resolve(db);
+                };
+
+                request.onerror = (event) => {
+                    console.error("IndexedDB Error:", event.target.error);
+                    reject(event.target.error);
+                };
+            });
+        }
+
+        async function getSetting(key) {
+            return new Promise((resolve) => {
+                const transaction = db.transaction([STORE_SETTINGS], 'readonly');
+                const store = transaction.objectStore(STORE_SETTINGS);
+                const request = store.get(key);
+                request.onsuccess = () => resolve(request.result ? request.result.value : null);
+                request.onerror = () => resolve(null);
+            });
+        }
+
+        async function saveSetting(key, value) {
+            return new Promise((resolve) => {
+                const transaction = db.transaction([STORE_SETTINGS], 'readwrite');
+                const store = transaction.objectStore(STORE_SETTINGS);
+                store.put({ key, value });
+                transaction.oncomplete = () => resolve();
+            });
+        }
+
+        async function deleteSetting(key) {
+             return new Promise((resolve) => {
+                const transaction = db.transaction([STORE_SETTINGS], 'readwrite');
+                const store = transaction.objectStore(STORE_SETTINGS);
+                store.delete(key);
+                transaction.oncomplete = () => resolve();
+            });
+        }
+
+        async function addRecord(data) {
+            return new Promise((resolve) => {
+                const transaction = db.transaction([STORE_RECORDS], 'readwrite');
+                const store = transaction.objectStore(STORE_RECORDS);
+                store.add(data);
+                transaction.oncomplete = () => resolve();
+            });
+        }
+
+        async function getAllRecords() {
+            return new Promise((resolve) => {
+                const transaction = db.transaction([STORE_RECORDS], 'readonly');
+                const store = transaction.objectStore(STORE_RECORDS);
+                const index = store.index('timestamp');
+                const request = index.openCursor(null, 'prev'); // Newest first
+                const results = [];
+                request.onsuccess = (event) => {
+                    const cursor = event.target.result;
+                    if (cursor) {
+                        results.push(cursor.value);
+                        cursor.continue();
+                    } else {
+                        resolve(results);
+                    }
+                };
+            });
+        }
+        
+        async function deleteRecordById(id) {
+             return new Promise((resolve) => {
+                const transaction = db.transaction([STORE_RECORDS], 'readwrite');
+                const store = transaction.objectStore(STORE_RECORDS);
+                store.delete(id);
+                transaction.oncomplete = () => resolve();
+            });
+        }
+
+        // --- Web Speech API Logic ---
+        let recognition;
+        let isRecording = false;
+
+        function initSpeechRecognition() {
+            if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+                const micBtn = document.getElementById('micBtn');
+                if (micBtn) micBtn.style.display = 'none'; // Hide if not supported
+                console.log("Speech recognition not supported");
+                return;
+            }
+
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'zh-TW'; // Taiwan Mandarin
+            recognition.continuous = true; // Keep recording until stopped
+            recognition.interimResults = true; // Show results as they are spoken
+
+            recognition.onstart = () => {
+                isRecording = true;
+                updateMicUI(true);
+            };
+
+            recognition.onend = () => {
+                isRecording = false;
+                updateMicUI(false);
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech Recognition Error", event.error);
+                isRecording = false;
+                updateMicUI(false);
+                if (event.error === 'not-allowed') {
+                    showToast('請允許使用麥克風權限', 'error');
+                } else if (event.error !== 'no-speech') {
+                    showToast('語音辨識錯誤: ' + event.error, 'error');
+                }
+            };
+
+            recognition.onresult = (event) => {
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                const textarea = document.getElementById('rawInput');
+                // Append final transcript to existing content
+                if (finalTranscript) {
+                    textarea.value += finalTranscript;
+                }
+            };
+        }
+
+        function toggleRecording() {
+            if (!recognition) return;
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+
+        function updateMicUI(recording) {
+            const btn = document.getElementById('micBtn');
+            const icon = document.getElementById('micIcon');
+            const status = document.getElementById('recordingStatus');
+            const textarea = document.getElementById('rawInput');
+
+            if (recording) {
+                btn.classList.remove('bg-white', 'text-slate-500');
+                btn.classList.add('bg-red-500', 'text-white', 'pulse-red', 'border-red-500');
+                icon.className = "fa-solid fa-microphone-lines"; 
+                status.classList.remove('hidden');
+                status.classList.add('flex');
+                textarea.classList.add('ring-2', 'ring-red-100');
+            } else {
+                btn.classList.add('bg-white', 'text-slate-500');
+                btn.classList.remove('bg-red-500', 'text-white', 'pulse-red', 'border-red-500');
+                icon.className = "fa-solid fa-microphone";
+                status.classList.add('hidden');
+                status.classList.remove('flex');
+                textarea.classList.remove('ring-red-100');
+            }
+        }
+
+        // --- Logic & UI Handlers ---
+
+        async function checkApiKey() {
+            const apiKey = await getSetting('gemini_api_key');
+            const settingsPanel = document.getElementById('settingsPanel');
+            const statusText = document.getElementById('keyStatus');
+            const input = document.getElementById('apiKeyInput');
+
+            if (apiKey) {
+                statusText.innerHTML = '<span class="text-green-600"><i class="fa-solid fa-check-circle"></i> 已儲存 API Key</span>';
+                input.value = '****************';
+                input.disabled = true;
+                // If key exists, hide panel by default, only show if toggled
+            } else {
+                statusText.innerHTML = '<span class="text-amber-600"><i class="fa-solid fa-circle-exclamation"></i> 尚未設定 API Key</span>';
+                settingsPanel.classList.remove('hidden');
+                input.disabled = false;
+            }
+        }
+
+        function toggleSettings() {
+            const panel = document.getElementById('settingsPanel');
+            panel.classList.toggle('hidden');
+        }
+
+        async function saveApiKey() {
+            const input = document.getElementById('apiKeyInput');
+            const key = input.value.trim();
+            if (!key || key.startsWith('***')) return;
+
+            await saveSetting('gemini_api_key', key);
+            showToast('API Key 已儲存', 'success');
+            checkApiKey();
+            toggleSettings(); // Close after save
+        }
+
+        async function clearApiKey() {
+            if(confirm('確定要從此瀏覽器刪除 API Key 嗎？之後需要重新輸入才能使用 AI 功能。')) {
+                await deleteSetting('gemini_api_key');
+                document.getElementById('apiKeyInput').value = '';
+                document.getElementById('apiKeyInput').disabled = false;
+                showToast('API Key 已移除', 'info');
+                checkApiKey();
+            }
+        }
+
+        async function processWithAI() {
+            const rawText = document.getElementById('rawInput').value.trim();
+            if (!rawText) {
+                showToast('請先輸入內容', 'error');
+                return;
+            }
+
+            const apiKey = await getSetting('gemini_api_key');
+            if (!apiKey) {
+                showToast('請先設定 Gemini API Key', 'error');
+                toggleSettings();
+                return;
+            }
+
+            // UI Loading State
+            const btn = document.getElementById('processBtn');
+            const icon = document.getElementById('btnIcon');
+            const text = document.getElementById('btnText');
+            
+            btn.disabled = true;
+            icon.innerHTML = '<div class="loader"></div>';
+            text.innerText = 'AI 思考中...';
+            
+            // Hide previous results (except when re-processing for clarification, logic handles that inside)
+            document.getElementById('resultSection').classList.add('hidden');
+            document.getElementById('aiQuestionBox').classList.add('hidden');
+            // Clear clarification input
+            document.getElementById('clarificationInput').value = '';
+
+            try {
+                // Call Gemini API
+                const result = await callGeminiAPI(apiKey, rawText);
+                
+                // Show Result
+                document.getElementById('refinedOutput').value = result.refined_text;
+                document.getElementById('resultSection').classList.remove('hidden');
+
+                // If AI has questions (inquiry status)
+                if (result.needs_clarification && result.questions) {
+                    const qBox = document.getElementById('aiQuestionBox');
+                    const qText = document.getElementById('aiQuestionText');
+                    qText.innerHTML = result.questions.replace(/\n/g, '<br>'); // Simple format
+                    qBox.classList.remove('hidden');
+                    showToast('AI 發現需要補充的資訊', 'info');
+                    
+                    // Focus on clarification input
+                    setTimeout(() => {
+                        document.getElementById('clarificationInput').focus();
+                    }, 500);
+                } else {
+                    showToast('AI 潤飾完成', 'success');
+                }
+                
+                // Scroll to result
+                document.getElementById('resultSection').scrollIntoView({ behavior: 'smooth' });
+
+            } catch (error) {
+                console.error(error);
+                showToast('AI 處理失敗: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                icon.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i>';
+                text.innerText = 'AI 潤飾紀錄';
+            }
+        }
+
+        // --- New Function: Submit Clarification ---
+        async function submitClarification() {
+            const rawText = document.getElementById('rawInput').value.trim();
+            const clarification = document.getElementById('clarificationInput').value.trim();
+            
+            if (!clarification) {
+                showToast('請輸入補充說明', 'error');
+                return;
+            }
+
+            const apiKey = await getSetting('gemini_api_key');
+            
+            // UI Loading State for Clarification Button
+            const btn = document.getElementById('clarifyBtn');
+            const originalContent = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<div class="loader mr-2" style="border-top-color: white; border-left-color: white;"></div> 處理中...';
+
+            // Construct new combined prompt
+            const combinedText = `原始敘述：\n${rawText}\n\n補充說明(使用者針對疑問的回答)：\n${clarification}`;
+
+            try {
+                const result = await callGeminiAPI(apiKey, combinedText);
+                
+                // Update output
+                document.getElementById('refinedOutput').value = result.refined_text;
+
+                if (!result.needs_clarification) {
+                    // Success: Hide question box
+                    document.getElementById('aiQuestionBox').classList.add('hidden');
+                    document.getElementById('clarificationInput').value = '';
+                    showToast('已根據補充資訊完成潤飾', 'success');
+                } else {
+                    // Still needs clarification: Update question
+                    document.getElementById('aiQuestionText').innerHTML = result.questions.replace(/\n/g, '<br>');
+                    document.getElementById('clarificationInput').value = ''; // Clear for next answer
+                    showToast('AI 仍有疑問，請繼續補充', 'info');
+                }
+            } catch (error) {
+                console.error(error);
+                showToast('處理失敗: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalContent;
+            }
+        }
+
+        async function callGeminiAPI(key, text) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${key}`;
+            
+            const prompt = `
+                角色：你是一位資深的輔導諮商督導。
+                任務：將以下的使用者口語敘述改寫為一份專業的「輔導/事件紀錄」。
+
+                規則：
+                1. 保持客觀：不要添加不存在的事實。
+                2. 圓融潤飾：將情緒化字眼轉化為中性、專業用語。
+                3. 邏輯檢查：如果原始敘述嚴重缺乏關鍵資訊(如：主詞不明、時間錯亂、事件因果完全斷裂)，請在回傳的JSON中標註需要補充。
+                4. 語言：繁體中文（台灣）。
+                
+                輸出格式：請務必輸出標準的 JSON 格式，不要包含 markdown 標籤（如 \`\`\`json）。JSON 結構如下：
+                {
+                    "needs_clarification": boolean,  // 如果資訊嚴重不足回傳 true，否則 false
+                    "questions": "string",           // 如果上一項為 true，列出具體的提問或建議補充點；否則留空
+                    "refined_text": "string"         // 這是你的潤飾結果。即使資訊不足，也請盡力根據現有資訊提供一個草稿(並融入使用者的補充說明)
+                }
+
+                原始敘述(可能包含後續補充)：
+                "${text}"
+            `;
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { responseMimeType: "application/json" }
+                })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error?.message || 'API 請求失敗');
+            }
+
+            const data = await response.json();
+            const responseText = data.candidates[0].content.parts[0].text.trim();
+            
+            // Try parsing JSON
+            try {
+                const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '');
+                return JSON.parse(cleanJson);
+            } catch (e) {
+                console.warn("JSON Parse failed, falling back to text", e);
+                return {
+                    needs_clarification: false,
+                    questions: "",
+                    refined_text: responseText
+                };
+            }
+        }
+
+        function cancelEdit() {
+            document.getElementById('resultSection').classList.add('hidden');
+            document.getElementById('refinedOutput').value = '';
+            document.getElementById('aiQuestionBox').classList.add('hidden');
+        }
+
+        async function saveRecord() {
+            const rawText = document.getElementById('rawInput').value.trim();
+            const refinedText = document.getElementById('refinedOutput').value.trim();
+
+            if (!refinedText) return;
+
+            const record = {
+                timestamp: new Date().toISOString(),
+                raw: rawText,
+                refined: refinedText
+            };
+
+            await addRecord(record);
+            showToast('紀錄已寫入資料庫', 'success');
+            
+            // Reset UI
+            document.getElementById('rawInput').value = '';
+            cancelEdit();
+            loadRecords();
+        }
+
+        async function loadRecords() {
+            const list = document.getElementById('recordsList');
+            const records = await getAllRecords();
+
+            if (records.length === 0) {
+                list.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-slate-400">目前尚無紀錄</td></tr>`;
+                return;
+            }
+
+            list.innerHTML = records.map(r => {
+                const date = new Date(r.timestamp).toLocaleString('zh-TW', { 
+                    year: 'numeric', month: '2-digit', day: '2-digit', 
+                    hour: '2-digit', minute: '2-digit' 
+                });
+                return `
+                    <tr class="hover:bg-slate-50 transition group">
+                        <td class="px-6 py-4 whitespace-nowrap text-slate-500 font-mono text-xs">${date}</td>
+                        <td class="px-6 py-4">
+                            <div class="max-w-xs truncate text-slate-400 text-sm" title="${escapeHtml(r.raw)}">${escapeHtml(r.raw)}</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-slate-700 text-sm line-clamp-3">${escapeHtml(r.refined)}</div>
+                        </td>
+                        <td class="px-6 py-4 text-center">
+                            <button onclick="deleteRecord(${r.id})" class="text-red-400 hover:text-red-600 transition p-2 rounded hover:bg-red-50" title="刪除">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+        
+        async function deleteRecord(id) {
+            if(confirm("確定要刪除這條紀錄嗎？此動作無法復原。")) {
+                await deleteRecordById(id);
+                loadRecords();
+                showToast('紀錄已刪除', 'info');
+            }
+        }
+
+        function exportToCSV() {
+            getAllRecords().then(records => {
+                if (records.length === 0) {
+                    showToast('沒有資料可匯出', 'error');
+                    return;
+                }
+
+                // Add BOM for Excel utf-8 compatibility
+                let csvContent = "\uFEFF";
+                csvContent += "時間,原始敘述,潤飾後紀錄\n";
+
+                records.forEach(r => {
+                    const date = new Date(r.timestamp).toLocaleString('zh-TW');
+                    // Escape quotes and wrap in quotes for CSV validity
+                    const raw = `"${r.raw.replace(/"/g, '""')}"`;
+                    const refined = `"${r.refined.replace(/"/g, '""')}"`;
+                    csvContent += `${date},${raw},${refined}\n`;
+                });
+
+                const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `輔導紀錄匯出_${new Date().toISOString().slice(0,10)}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showToast('CSV 下載已開始', 'success');
+            });
+        }
+
+        // --- Utilities ---
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toastMsg');
+            const icon = document.getElementById('toastIcon');
+
+            msg.innerText = message;
+            
+            if (type === 'error') {
+                icon.className = 'fa-solid fa-circle-exclamation text-red-400';
+            } else if (type === 'info') {
+                icon.className = 'fa-solid fa-circle-info text-blue-400';
+            } else {
+                icon.className = 'fa-solid fa-circle-check text-green-400';
+            }
+
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
