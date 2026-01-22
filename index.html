@@ -210,15 +210,15 @@
         <div class="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
              <video id="cameraVideo" autoplay playsinline class="absolute w-full h-full object-cover"></video>
              <!-- 對焦框引導 -->
-             <div class="absolute w-64 h-4/5 border-2 border-white/50 rounded-lg pointer-events-none z-10 flex flex-col justify-between p-2">
+             <div id="cameraGuide" class="absolute w-[90%] h-[80%] border-2 border-white/70 rounded-lg pointer-events-none z-10 flex flex-col justify-between p-2 shadow-[0_0_0_2000px_rgba(0,0,0,0.6)]">
                  <div class="flex justify-between">
-                     <div class="w-4 h-4 border-l-2 border-t-2 border-white"></div>
-                     <div class="w-4 h-4 border-r-2 border-t-2 border-white"></div>
+                     <div class="w-8 h-8 border-l-4 border-t-4 border-white rounded-tl-sm"></div>
+                     <div class="w-8 h-8 border-r-4 border-t-4 border-white rounded-tr-sm"></div>
                  </div>
-                 <div class="text-center text-white/80 text-sm bg-black/30 px-2 py-1 rounded">請將發票置於框內</div>
+                 <div class="text-center text-white/90 text-sm font-medium drop-shadow-md">請將發票置於框內</div>
                  <div class="flex justify-between">
-                    <div class="w-4 h-4 border-l-2 border-b-2 border-white"></div>
-                    <div class="w-4 h-4 border-r-2 border-b-2 border-white"></div>
+                    <div class="w-8 h-8 border-l-4 border-b-4 border-white rounded-bl-sm"></div>
+                    <div class="w-8 h-8 border-r-4 border-b-4 border-white rounded-br-sm"></div>
                 </div>
              </div>
         </div>
@@ -403,8 +403,6 @@
             } else {
                 apiKeyInput.value = '';
                 deleteApiKeyBtn.classList.add('hidden');
-                // Optional: Auto open modal if no key
-                // apiModal.classList.remove('hidden'); 
             }
             return key;
         }
@@ -531,22 +529,62 @@
         btnReCamera.addEventListener('click', startCamera);
         closeCameraBtn.addEventListener('click', stopCamera);
         
-        // Capture Photo
+        // Capture Photo (with Crop)
         captureBtn.addEventListener('click', () => {
             if (!mediaStream) return;
             
-            // Set canvas dimensions to match video
-            cameraCanvas.width = cameraVideo.videoWidth;
-            cameraCanvas.height = cameraVideo.videoHeight;
-            
-            // Draw
+            // 1. Get DOM Rects
+            const guideRect = document.getElementById('cameraGuide').getBoundingClientRect();
+            const videoRect = cameraVideo.getBoundingClientRect();
+
+            // 2. Calculate displayed video dimensions (considering object-fit: cover)
+            const videoRatio = cameraVideo.videoWidth / cameraVideo.videoHeight;
+            const elementRatio = videoRect.width / videoRect.height;
+
+            let renderWidth, renderHeight, offsetX, offsetY;
+
+            if (videoRatio > elementRatio) {
+                // Video is wider than container: vertical fit, horizontal crop
+                renderHeight = videoRect.height;
+                renderWidth = renderHeight * videoRatio;
+                offsetX = (renderWidth - videoRect.width) / 2;
+                offsetY = 0;
+            } else {
+                // Video is taller than container: horizontal fit, vertical crop
+                renderWidth = videoRect.width;
+                renderHeight = renderWidth / videoRatio;
+                offsetX = 0;
+                offsetY = (renderHeight - videoRect.height) / 2;
+            }
+
+            // 3. Calculate crop coordinates relative to the rendered video
+            // The guide is relative to the viewport/container (videoRect)
+            // We need to add the offset (hidden part of video) to the guide's position relative to videoRect
+            const guideRelativeLeft = guideRect.left - videoRect.left;
+            const guideRelativeTop = guideRect.top - videoRect.top;
+
+            const cropX_displayed = guideRelativeLeft + offsetX;
+            const cropY_displayed = guideRelativeTop + offsetY;
+
+            // 4. Map to source video coordinates
+            const scale = cameraVideo.videoWidth / renderWidth;
+
+            const sourceX = cropX_displayed * scale;
+            const sourceY = cropY_displayed * scale;
+            const sourceW = guideRect.width * scale;
+            const sourceH = guideRect.height * scale;
+
+            // 5. Draw to canvas
+            cameraCanvas.width = sourceW;
+            cameraCanvas.height = sourceH;
             const ctx = cameraCanvas.getContext('2d');
-            
-            // Handle mirroring if front camera (optional, usually front is mirrored)
-            // if (facingMode === 'user') { ... } 
-            
-            ctx.drawImage(cameraVideo, 0, 0);
-            
+
+            ctx.drawImage(
+                cameraVideo,
+                sourceX, sourceY, sourceW, sourceH, // Source
+                0, 0, sourceW, sourceH              // Destination
+            );
+
             // Convert to base64
             const base64 = cameraCanvas.toDataURL('image/jpeg', 0.9);
             
