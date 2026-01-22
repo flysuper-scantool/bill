@@ -33,6 +33,17 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* Microphone Pulse Animation */
+        .mic-listening {
+            color: #ef4444 !important; /* Red */
+            animation: pulse-red 1.5s infinite;
+        }
+        @keyframes pulse-red {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -76,7 +87,12 @@
                         <i class="fa-solid fa-pen-to-square text-emerald-500"></i>
                         原始訊息/草稿
                     </label>
-                    <span class="text-xs text-gray-400">請輸入您想傳達的重點</span>
+                    <div class="flex items-center gap-2">
+                        <button id="micBtn" onclick="toggleVoiceInput()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-full transition flex items-center gap-1 border border-gray-200" title="語音輸入">
+                            <i class="fa-solid fa-microphone"></i> 
+                            <span id="micStatusText">語音輸入</span>
+                        </button>
+                    </div>
                 </div>
                 
                 <textarea id="rawInput" 
@@ -122,6 +138,9 @@
                         潤飾結果
                     </label>
                     <div class="flex gap-2">
+                        <button onclick="shareResult()" class="text-xs bg-emerald-50 hover:bg-emerald-100 text-emerald-600 px-3 py-1.5 rounded-lg transition flex items-center gap-1 border border-emerald-100" title="分享給家長">
+                            <i class="fa-solid fa-share-nodes"></i> 分享
+                        </button>
                         <button onclick="copyToClipboard()" class="text-xs bg-gray-100 hover:bg-gray-200 text-gray-600 px-3 py-1.5 rounded-lg transition flex items-center gap-1" title="複製內容">
                             <i class="fa-regular fa-copy"></i> 複製
                         </button>
@@ -189,11 +208,14 @@
         // --- Configuration & State ---
         let GEMINI_API_KEY = localStorage.getItem('gemini_api_key') || '';
         let historyData = JSON.parse(localStorage.getItem('comm_history') || '[]');
+        let recognition = null;
+        let isRecording = false;
 
         // --- Initialization ---
         document.addEventListener('DOMContentLoaded', () => {
             updateApiKeyStatus();
             renderHistory();
+            initSpeechRecognition();
         });
 
         // --- API Key Management ---
@@ -229,6 +251,85 @@
                 statusText.innerText = '設定 API Key';
             }
         }
+
+        // --- Voice Input Logic ---
+        function initSpeechRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.lang = 'zh-TW'; // 設定為繁體中文
+                recognition.continuous = false; // 講完一句自動停止，較適合短語
+                recognition.interimResults = false;
+
+                recognition.onstart = function() {
+                    isRecording = true;
+                    updateMicUI(true);
+                };
+
+                recognition.onend = function() {
+                    isRecording = false;
+                    updateMicUI(false);
+                };
+
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    const inputArea = document.getElementById('rawInput');
+                    // Append text with space if needed
+                    if (inputArea.value.length > 0) {
+                        inputArea.value += "\n" + transcript;
+                    } else {
+                        inputArea.value = transcript;
+                    }
+                    showToast('已辨識語音');
+                };
+
+                recognition.onerror = function(event) {
+                    console.error("Speech recognition error", event.error);
+                    isRecording = false;
+                    updateMicUI(false);
+                    if (event.error === 'not-allowed') {
+                        showToast('請允許麥克風權限', 'error');
+                    } else {
+                        showToast('語音辨識錯誤', 'error');
+                    }
+                };
+            } else {
+                // Browser doesn't support
+                document.getElementById('micBtn').style.display = 'none';
+            }
+        }
+
+        function toggleVoiceInput() {
+            if (!recognition) {
+                showToast('您的瀏覽器不支援語音輸入', 'error');
+                return;
+            }
+
+            if (isRecording) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        }
+
+        function updateMicUI(listening) {
+            const btn = document.getElementById('micBtn');
+            const icon = btn.querySelector('i');
+            const text = document.getElementById('micStatusText');
+            
+            if (listening) {
+                btn.classList.add('mic-listening', 'bg-red-50', 'border-red-200');
+                btn.classList.remove('bg-gray-100', 'text-gray-600');
+                text.innerText = '聆聽中...';
+                icon.classList.add('fa-beat-fade');
+            } else {
+                btn.classList.remove('mic-listening', 'bg-red-50', 'border-red-200');
+                btn.classList.add('bg-gray-100', 'text-gray-600');
+                text.innerText = '語音輸入';
+                icon.classList.remove('fa-beat-fade');
+            }
+        }
+
 
         // --- Core Logic: Generate Content ---
         async function generateRefinedText() {
@@ -357,21 +458,30 @@
 
             historyData.forEach(item => {
                 const div = document.createElement('div');
-                div.className = 'bg-white p-3 rounded-xl border border-gray-100 hover:shadow-md transition cursor-pointer group';
+                div.className = 'bg-white p-3 rounded-xl border border-gray-100 hover:shadow-md transition cursor-pointer group relative';
+                
+                // Content Click Handler
                 div.onclick = (e) => {
-                    // Prevent triggering if clicking delete button
-                    if(e.target.closest('.delete-btn')) return;
+                    if(e.target.closest('button')) return; // Ignore button clicks
                     loadHistoryItem(item);
                 };
+
+                // Escape double quotes for attribute
+                const safeRefined = item.refined.replace(/"/g, '&quot;');
 
                 div.innerHTML = `
                     <div class="flex justify-between items-start mb-1">
                         <span class="text-[10px] uppercase font-bold tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                             ${toneLabels[item.tone] || item.tone}
                         </span>
-                        <button class="delete-btn text-gray-300 hover:text-red-400 transition" onclick="deleteHistoryItem(${item.id})">
-                            <i class="fa-solid fa-trash-can"></i>
-                        </button>
+                        <div class="flex gap-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button onclick="shareText('${safeRefined.replace(/\n/g, '\\n').replace(/'/g, "\\'")}')" class="text-emerald-400 hover:text-emerald-600 p-1" title="分享">
+                                <i class="fa-solid fa-share-nodes"></i>
+                            </button>
+                            <button onclick="deleteHistoryItem(${item.id})" class="text-gray-300 hover:text-red-400 p-1" title="刪除">
+                                <i class="fa-solid fa-trash-can"></i>
+                            </button>
+                        </div>
                     </div>
                     <p class="text-xs text-gray-800 line-clamp-2 font-medium mb-1">${escapeHtml(item.refined)}</p>
                     <p class="text-[10px] text-gray-400 text-right">${item.timestamp}</p>
@@ -450,6 +560,47 @@
                 showToast('已複製到剪貼簿');
             }).catch(err => {
                 showToast('複製失敗', 'error');
+            });
+        }
+
+        // Share Functionality (New)
+        async function shareResult() {
+            const outputArea = document.getElementById('outputArea');
+            const text = outputArea.innerText.trim();
+            if (!text) {
+                showToast('沒有內容可分享', 'error');
+                return;
+            }
+            await shareText(text);
+        }
+
+        async function shareText(text) {
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: '親師溝通訊息',
+                        text: text
+                    });
+                    showToast('分享成功');
+                } catch (err) {
+                    console.log('分享取消或失敗', err);
+                    // User cancelled or API failed, fallback handled implicitly by doing nothing
+                    // If error is not "AbortError", maybe show toast
+                    if (err.name !== 'AbortError') {
+                        copyToClipboardFallback(text);
+                    }
+                }
+            } else {
+                // Fallback for desktop/unsupported browsers
+                copyToClipboardFallback(text);
+            }
+        }
+        
+        function copyToClipboardFallback(text) {
+             navigator.clipboard.writeText(text).then(() => {
+                showToast('瀏覽器不支援分享，已自動複製文字');
+            }).catch(err => {
+                showToast('分享失敗', 'error');
             });
         }
 
