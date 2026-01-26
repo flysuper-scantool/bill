@@ -189,15 +189,39 @@
 
     <!-- API Key Modal -->
     <div id="apiKeyModal" class="fixed inset-0 bg-black bg-opacity-50 z-[60] hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl transform transition-all scale-100 mx-4">
+        <div class="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl transform transition-all scale-100 mx-4 max-h-[90vh] flex flex-col">
             <h3 class="text-lg font-bold text-gray-800 mb-2">設定 Google Gemini API Key</h3>
-            <p class="text-sm text-gray-500 mb-4">
-                您的 API Key 僅會儲存在瀏覽器的 LocalStorage 中，不會上傳至任何其他伺服器。
-                <br>沒有 Key 嗎？ <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-emerald-500 underline">在此免費申請</a>
-            </p>
-            <input type="password" id="apiKeyInput" placeholder="貼上您的 API Key (AIza...)" 
-                class="w-full p-3 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-emerald-500 outline-none">
-            <div class="flex justify-end gap-3">
+            
+            <div class="overflow-y-auto custom-scrollbar flex-grow pr-1">
+                <p class="text-sm text-gray-500 mb-2">
+                    您的 API Key 僅會儲存在瀏覽器的 LocalStorage 中，不會上傳至任何其他伺服器。
+                </p>
+                <div class="bg-emerald-50 rounded-lg p-3 mb-4 border border-emerald-100">
+                    <p class="text-sm text-emerald-800 mb-2 font-medium">
+                        <i class="fa-solid fa-key mr-1"></i> 如何取得 Key？
+                    </p>
+                    <ol class="list-decimal list-inside text-xs text-emerald-700 space-y-1 ml-1">
+                        <li>前往 <a href="https://aistudio.google.com/app/api-keys" target="_blank" class="underline font-bold hover:text-emerald-900">Google AI Studio</a></li>
+                        <li>登入 Google 帳號</li>
+                        <li>點擊 "Create API key"</li>
+                    </ol>
+                    
+                    <button onclick="toggleTutorial()" class="mt-3 text-xs flex items-center gap-1 text-emerald-600 hover:text-emerald-800 font-medium transition-colors bg-white px-2 py-1 rounded border border-emerald-200 shadow-sm">
+                        <i class="fa-regular fa-image"></i>
+                        <span id="tutorialBtnText">查看步驟教學圖片</span>
+                        <i id="tutorialArrow" class="fa-solid fa-chevron-down transition-transform duration-200"></i>
+                    </button>
+
+                    <div id="tutorialImageArea" class="hidden mt-3 border-2 border-emerald-100 rounded-lg overflow-hidden transition-all">
+                        <img src="https://flysuper-tool.github.io/apps/Gemini_APIkey.png" alt="API Key 申請步驟教學" class="w-full h-auto">
+                    </div>
+                </div>
+
+                <input type="password" id="apiKeyInput" placeholder="貼上您的 API Key (AIza...)" 
+                    class="w-full p-3 border border-gray-300 rounded-lg mb-1 focus:ring-2 focus:ring-emerald-500 outline-none">
+            </div>
+
+            <div class="flex justify-end gap-3 mt-4 pt-2 border-t border-gray-100">
                 <button onclick="toggleApiKeyModal()" class="px-4 py-2 text-gray-500 hover:bg-gray-100 rounded-lg transition">取消</button>
                 <button onclick="saveApiKey()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition font-medium">儲存</button>
             </div>
@@ -235,6 +259,22 @@
                 document.getElementById('apiKeyInput').value = GEMINI_API_KEY;
             } else {
                 modal.classList.add('hidden');
+            }
+        }
+
+        function toggleTutorial() {
+            const imgArea = document.getElementById('tutorialImageArea');
+            const arrow = document.getElementById('tutorialArrow');
+            const btnText = document.getElementById('tutorialBtnText');
+            
+            if (imgArea.classList.contains('hidden')) {
+                imgArea.classList.remove('hidden');
+                arrow.style.transform = 'rotate(180deg)';
+                btnText.innerText = '隱藏步驟教學圖片';
+            } else {
+                imgArea.classList.add('hidden');
+                arrow.style.transform = 'rotate(0deg)';
+                btnText.innerText = '查看步驟教學圖片';
             }
         }
 
