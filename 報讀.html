@@ -1324,13 +1324,19 @@ if (clearCacheButton) {
 }
 
 function replaceTextWithSheetData(text, data) {
-    if (!data) return text;
-    // 從第二行開始取值（第一行是標題，使用 slice(1) 跳過）
-    data.table.rows.slice(1).forEach(row => {
+    if (!data || !data.table || !data.table.rows) return text;
+    
+    // 從第二行開始取值（第一行是標題，rows[0] 是標題，rows[1] 是第二行數據）
+    // 使用 slice(1) 跳過第一行（索引0），從第二行（索引1）開始讀取
+    const dataRows = data.table.rows.slice(1);
+    console.log("總行數:", data.table.rows.length, "跳過第一行後的行數:", dataRows.length);
+    
+    dataRows.forEach((row, index) => {
         // 確保資料存在且轉換為字串
         const original = row.c[0]?.v?.toString() || ''; // B欄（原始文字）
         const replacement = row.c[1]?.v?.toString() || ''; // C欄（替換文字）
         if (original && replacement) {
+            console.log(`處理第 ${index + 2} 行（試算表第 ${index + 2} 行）: "${original}" -> "${replacement}"`);
             // 使用字串替換，確保都是純文字處理
             text = text.replace(new RegExp(original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g"), replacement);
         }
