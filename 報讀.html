@@ -67,6 +67,14 @@ audio {
             position: relative;
             display: inline-block;
         }
+        /* 標記模式下的游標樣式 */
+        body.marking-mode-active {
+            cursor: crosshair !important;
+        }
+        body.marking-mode-active .pdf-viewer,
+        body.marking-mode-active canvas {
+            cursor: crosshair !important;
+        }
         /* 區塊標記層樣式 */
         .mark-layer {
             position: absolute;
@@ -89,9 +97,9 @@ audio {
             position: absolute;
             border: 3px solid #007BFF;
             background-color: rgba(0, 123, 255, 0.1);
-            cursor: pointer;
+            cursor: move;
             pointer-events: auto;
-            transition: all 0.2s;
+            transition: none;
             box-sizing: border-box;
             min-width: 10px;
             min-height: 10px;
@@ -103,6 +111,70 @@ audio {
         .mark-block.active {
             border-color: #28a745;
             background-color: rgba(40, 167, 69, 0.2);
+        }
+        .mark-block.dragging {
+            opacity: 0.8;
+            z-index: 1003;
+        }
+        .mark-block .resize-handle {
+            position: absolute;
+            background-color: #007BFF;
+            border: 2px solid white;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            z-index: 1001;
+            pointer-events: auto;
+            cursor: nwse-resize;
+        }
+        .mark-block .resize-handle.nw {
+            top: -6px;
+            left: -6px;
+            cursor: nw-resize;
+        }
+        .mark-block .resize-handle.ne {
+            top: -6px;
+            right: 20px;
+            cursor: ne-resize;
+        }
+        .mark-block .resize-handle.sw {
+            bottom: -6px;
+            left: -6px;
+            cursor: sw-resize;
+        }
+        .mark-block .resize-handle.se {
+            bottom: -6px;
+            right: -6px;
+            cursor: se-resize;
+        }
+        .mark-block .resize-handle.n {
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: n-resize;
+        }
+        .mark-block .resize-handle.s {
+            bottom: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            cursor: s-resize;
+        }
+        .mark-block .resize-handle.w {
+            top: 50%;
+            left: -6px;
+            transform: translateY(-50%);
+            cursor: w-resize;
+        }
+        .mark-block .resize-handle.e {
+            top: 50%;
+            right: -6px;
+            transform: translateY(-50%);
+            cursor: e-resize;
+        }
+        .mark-block .resize-handle:hover {
+            background-color: #0056b3;
+            width: 14px;
+            height: 14px;
         }
         .mark-block .mark-label {
             position: absolute;
@@ -134,7 +206,7 @@ audio {
             justify-content: center;
             font-size: 16px;
             font-weight: bold;
-            z-index: 1002;
+            z-index: 1005;
             line-height: 1;
             pointer-events: auto;
             user-select: none;
@@ -144,6 +216,33 @@ audio {
         }
         .mark-block .mark-delete:hover {
             background-color: #c82333;
+        }
+        .mark-block .mark-edit {
+            position: absolute;
+            top: -8px;
+            right: 28px;
+            width: 24px;
+            height: 24px;
+            background-color: #28a745;
+            color: white;
+            border: 2px solid white;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 1005;
+            line-height: 1;
+            pointer-events: auto;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        .mark-block .mark-edit:hover {
+            background-color: #218838;
         }
         .mark-layer.hidden {
             display: none !important;
@@ -233,28 +332,30 @@ audio {
       box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
     }
     
-    /* 標記功能工具欄（橫向，置頂） */
+    /* 標記功能工具欄（橫向，置底） */
     .marking-toolbar {
       display: none;
       position: fixed;
-      top: 0;
+      bottom: 0;
       left: 0;
       right: 0;
       width: 100%;
-      background-color: rgba(255, 255, 255, 0.95);
-      border-bottom: 2px solid #007BFF;
+      background-color: rgba(255, 255, 255, 0.98);
+      border-top: 2px solid #007BFF;
       padding: 10px 20px;
-      z-index: 1000;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      z-index: 2000;
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
       flex-direction: row;
       align-items: center;
       justify-content: center;
       gap: 10px;
       flex-wrap: wrap;
+      min-height: 50px;
     }
     
     .marking-toolbar.show {
-      display: flex;
+      display: flex !important;
+      visibility: visible !important;
     }
     
     .marking-toolbar .button {
@@ -262,6 +363,16 @@ audio {
       padding: 8px 16px;
       font-size: 14px;
       white-space: nowrap;
+    }
+    
+    /* 確保工具欄顯示時，按鈕可見（使用!important覆蓋內聯樣式） */
+    .marking-toolbar.show .button {
+      display: inline-block !important;
+      visibility: visible !important;
+      opacity: 1 !important;
+      pointer-events: auto !important;
+      z-index: 2001 !important;
+      position: relative;
     }
 
     /* 遮罩层样式 */
@@ -489,15 +600,18 @@ input[type=range]::-moz-range-thumb {
     </div>
     <div id="apiKeyModalOverlay" class="modal-overlay" style="z-index: 10019;"></div>
     
-    <!-- 標記功能工具欄（橫向，置頂，不擋住PDF） -->
+    <!-- 標記功能工具欄（橫向，置底） -->
     <div id="markingToolbar" class="marking-toolbar">
-        <button id="markBlockButtonToolbar" class="button button-success">標記區塊</button>
+        <button id="cancelMarkingButtonToolbar" class="button button-danger" style="display: none;">取消標記</button>
+        <button id="manualMarkButtonToolbar" class="button button-primary" style="display: none;">手動標記</button>
+        <button id="aiMarkButtonToolbar" class="button button-light" style="display: none;">AI標記</button>
+        <button id="setPasswordButtonToolbar" class="button button-secondary" style="display: none;">設定密碼</button>
         <button id="saveMarkedPdfButtonToolbar" class="button button-success" style="display: none;">保存標記</button>
         <button id="downloadMarkedPdfButtonToolbar" class="button button-success" style="display: none;">下載PDF</button>
         <button id="clearMarksButtonToolbar" class="button button-danger" style="display: none;">清除標記</button>
     </div>
 
-<button  class="button button-light" style="writing-mode: vertical-rl; text-orientation: upright;z-index: 2000;position: fixed; bottom: 5px;left: 0%; z-index: 1100;color:black;font-size:16px;font-weight:bold;color: rgb(134, 101, 224);font-size: 20px;text-shadow: rgb(204, 204, 204) 0px 1px 0px, rgb(201, 201, 201) 0px 2px 0px;" onclick="redirectToNewPage()">切換載具語音</button>
+<button id="switchVoiceButton" class="button button-light" style="writing-mode: vertical-rl; text-orientation: upright;z-index: 2000;position: fixed; bottom: 5px;left: 0%; z-index: 1100;color:black;font-size:16px;font-weight:bold;color: rgb(134, 101, 224);font-size: 20px;text-shadow: rgb(204, 204, 204) 0px 1px 0px, rgb(201, 201, 201) 0px 2px 0px;" onclick="redirectToNewPage()">切換載具語音</button>
 <script>
 // 移除 BroadcastChannel 相關代碼，替換為以下實現
 
@@ -627,10 +741,12 @@ function renderPage(pageNum) {
         pdfViewer.appendChild(markLayer);
         pdfContainer.appendChild(pageContainer);
         
-        // 如果處於標記模式，為 pdfViewer 綁定事件
+        // 如果處於標記模式，為 pdfViewer 綁定事件並設置游標
         if (isMarkingMode) {
             pdfViewer.addEventListener('mousedown', handleViewerMouseDown);
             pdfViewer.addEventListener('touchstart', handleViewerTouchStart);
+            pdfViewer.style.setProperty('cursor', 'crosshair', 'important');
+            pdfCanvas.style.setProperty('cursor', 'crosshair', 'important');
         }
 
         const renderContext = {
@@ -660,16 +776,21 @@ function renderPage(pageNum) {
             // 在文字層渲染完成後，延遲渲染標記
             setTimeout(() => {
                 renderMarks();
-                // 如果處於標記模式，確保標記層事件已啟用
+                // 如果處於標記模式，確保標記層事件已啟用並設置游標
                 if (isMarkingMode) {
                     const markLayer = document.querySelector(`.mark-layer[data-page-num="${pageNum}"]`);
                     const pdfViewer = document.querySelector('.pdf-viewer');
+                    const canvas = pdfViewer ? pdfViewer.querySelector('canvas') : null;
                     if (markLayer) {
                         markLayer.classList.add('marking-mode');
                     }
                     if (pdfViewer) {
                         pdfViewer.addEventListener('mousedown', handleViewerMouseDown);
                         pdfViewer.addEventListener('touchstart', handleViewerTouchStart);
+                        pdfViewer.style.setProperty('cursor', 'crosshair', 'important');
+                    }
+                    if (canvas) {
+                        canvas.style.setProperty('cursor', 'crosshair', 'important');
                     }
                 }
             }, 300);
@@ -1503,15 +1624,20 @@ window.sendTextToTTS = sendTextToTTS;
                 // 取消朗讀
                 cancelReading();
             } else {
+                // 清除標記替換緩存
+                clearMarkReplacementCache();
+                
                 // 開始朗讀
                 const pdfContainer = document.getElementById('pdfContainer');
                 const textLayers = pdfContainer.getElementsByClassName('textLayer');
                 let fullText = '';
 
                 for (let textLayer of textLayers) {
-                    const spans = textLayer.getElementsByTagName('span');
+                    const spans = textLayer.getElementsByTagName('my-fra');
                     for (let span of spans) {
-                        fullText += span.textContent + ' ';
+                        // 檢查是否在標記區域內，如果在且標記有替換文字，使用替換文字
+                        const textToAdd = getTextWithMarkReplacement(span, textLayer);
+                        fullText += textToAdd + ' ';
                     }
                 }
 
@@ -1894,6 +2020,9 @@ async function readTextInsideFrame() {
         return;
     }
     
+    // 清除標記替換緩存
+    clearMarkReplacementCache();
+    
     window.speechSynthesis.cancel();
     const frameRect = frame.getBoundingClientRect();
     const viewerContainer = document.getElementById('viewerContainer');
@@ -1908,7 +2037,9 @@ async function readTextInsideFrame() {
             const spanRect = span.getBoundingClientRect();
             if (isInsideFrame(spanRect, frameRect)) {
                 span.style.backgroundColor = 'rgba(255, 255, 0, 0.2)';
-                textInsideFrame += span.textContent + '';
+                // 檢查是否在標記區域內，如果在且標記有替換文字，使用替換文字
+                const textToAdd = getTextWithMarkReplacement(span, textLayer);
+                textInsideFrame += textToAdd + '';
             }
         }
     }
@@ -1945,6 +2076,41 @@ async function readTextInsideFrame() {
     }
     // 沒有 PDF 文字層，才送圖片給 AI
     if (hasImageContent) {
+        // 檢查框選區域是否與標記區域重疊，如果重疊且標記有替換文字，使用替換文字
+        const pageMarks = marks[currentPage] || [];
+        for (const mark of pageMarks) {
+            if (!mark.replacementText || !mark.replacementText.trim()) continue;
+            
+            // 獲取標記層
+            const markLayer = document.querySelector(`.mark-layer[data-page-num="${currentPage}"]`);
+            if (!markLayer) continue;
+            
+            const markLayerRect = markLayer.getBoundingClientRect();
+            const markRect = {
+                left: markLayerRect.left + mark.x,
+                top: markLayerRect.top + mark.y,
+                right: markLayerRect.left + mark.x + mark.width,
+                bottom: markLayerRect.top + mark.y + mark.height
+            };
+            
+            // 檢查框選區域是否與標記區域重疊
+            const isOverlapping = !(frameRect.right < markRect.left || 
+                                    frameRect.left > markRect.right ||
+                                    frameRect.bottom < markRect.top ||
+                                    frameRect.top > markRect.bottom);
+            
+            if (isOverlapping) {
+                // 找到重疊的標記，使用替換文字，不需要進行圖片辨識
+                await new Promise((resolve, reject) => {
+                    sendTextToTTS(mark.replacementText.trim(), () => {
+                        resolve();
+                    });
+                });
+                return;
+            }
+        }
+        
+        // 沒有找到重疊的標記或標記沒有替換文字，才進行圖片辨識
         // 設置標記，防止重複執行
         isImageRecognizing = true;
         
@@ -2005,6 +2171,72 @@ function isInsideFrame(elementRect, frameRect) {
     elementRect.left >= frameRect.left &&
     elementRect.right <= frameRect.right
   );
+}
+
+// 輔助函數：檢查 span 是否在標記區域內，如果在且標記有替換文字，返回替換文字；否則返回原始文字
+// 使用一個 Map 來追蹤每個標記是否已經處理過，避免重複
+const markReplacementCache = new Map();
+
+function getTextWithMarkReplacement(span, textLayer) {
+    if (!span || !textLayer) return span ? span.textContent : '';
+    
+    const spanRect = span.getBoundingClientRect();
+    const textLayerRect = textLayer.getBoundingClientRect();
+    const spanX = spanRect.left - textLayerRect.left;
+    const spanY = spanRect.top - textLayerRect.top;
+    const spanRight = spanRect.right - textLayerRect.left;
+    const spanBottom = spanRect.bottom - textLayerRect.top;
+    
+    // 獲取當前頁面的標記
+    const pageMarks = marks[currentPage] || [];
+    
+    // 檢查是否與任何標記重疊
+    for (const mark of pageMarks) {
+        if (!mark.replacementText || !mark.replacementText.trim()) continue;
+        
+        // 獲取標記層
+        const markLayer = document.querySelector(`.mark-layer[data-page-num="${currentPage}"]`);
+        if (!markLayer) continue;
+        
+        const markLayerRect = markLayer.getBoundingClientRect();
+        
+        // 計算標記在文字層中的位置
+        const markInTextLayer = {
+            left: mark.x + (markLayerRect.left - textLayerRect.left),
+            top: mark.y + (markLayerRect.top - textLayerRect.top),
+            right: mark.x + mark.width + (markLayerRect.left - textLayerRect.left),
+            bottom: mark.y + mark.height + (markLayerRect.top - textLayerRect.top)
+        };
+        
+        // 檢查是否重疊
+        const isOverlapping = !(spanRight < markInTextLayer.left || 
+                                spanX > markInTextLayer.right ||
+                                spanBottom < markInTextLayer.top ||
+                                spanY > markInTextLayer.bottom);
+        
+        if (isOverlapping) {
+            // 創建標記的唯一鍵
+            const markKey = `${currentPage}_${mark.id}`;
+            
+            // 檢查這個標記是否已經處理過
+            if (!markReplacementCache.has(markKey)) {
+                // 第一次遇到這個標記，返回替換文字並標記為已處理
+                markReplacementCache.set(markKey, true);
+                return mark.replacementText.trim();
+            } else {
+                // 這個標記已經處理過，返回空字符串（避免重複）
+                return '';
+            }
+        }
+    }
+    
+    // 沒有重疊的標記，返回原始文字
+    return span.textContent;
+}
+
+// 清除標記替換緩存（在開始新的朗讀時調用）
+function clearMarkReplacementCache() {
+    markReplacementCache.clear();
 }
 
 // 輔助函數：裁剪Canvas區域
@@ -2110,6 +2342,9 @@ document.addEventListener('mouseup', () => {
     }
 }
         function sendHighlightedText() {
+            // 清除標記替換緩存
+            clearMarkReplacementCache();
+            
             const highlightedText = [];
             const textLayerDivs = document.getElementById('viewerContainer').getElementsByClassName('textLayer');
             
@@ -2117,7 +2352,9 @@ document.addEventListener('mouseup', () => {
                 const spans = textLayer.getElementsByTagName('my-fra');
                 for (let span of spans) {
                     if (span.style.backgroundColor === 'rgba(255, 0, 0, 0.2)') {
-                        highlightedText.push(span.textContent);
+                        // 檢查是否在標記區域內，如果在且標記有替換文字，使用替換文字
+                        const textToAdd = getTextWithMarkReplacement(span, textLayer);
+                        highlightedText.push(textToAdd);
                         span.style.backgroundColor = 'rgba(255, 255, 0, 0.2)'; // 已發音的標示
                         span.dataset.spoken = 'true'; // 標記為已發音
                     }
@@ -2545,10 +2782,1059 @@ document.getElementById('stopScanButton').addEventListener('click', stopQRScan);
 
 // ========== 區塊標記功能 ==========
 let isMarkingMode = false;
+let isManualMarkingEnabled = false; // 追蹤手動標記是否已經啟用
 let currentMark = null;
 let marks = {}; // 存儲所有標記 {pageNum: [{id, x, y, width, height, text}]}
 let markIdCounter = 0;
 let originalPdfBytes = null; // 保存原始PDF字節
+let pdfPasswordHash = null; // PDF密碼哈希（用於驗證）
+let currentSessionPassword = null; // 當前會話的密碼（避免重複輸入）
+
+// 密碼哈希函數（使用簡單的哈希算法）
+async function hashPassword(password) {
+    if (!password) return null;
+    const encoder = new TextEncoder();
+    const data = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    return hashHex;
+}
+
+// 驗證密碼
+async function verifyPassword(inputPassword) {
+    if (!pdfPasswordHash) return true; // 沒有密碼保護，直接通過
+    if (!inputPassword) return false;
+    const inputHash = await hashPassword(inputPassword);
+    return inputHash === pdfPasswordHash;
+}
+
+// 要求輸入密碼
+async function promptPassword(title = '輸入密碼', text = '此PDF標記已受密碼保護，請輸入密碼以繼續') {
+    const result = await Swal.fire({
+        title: title,
+        text: text,
+        input: 'password',
+        inputPlaceholder: '請輸入密碼',
+        showCancelButton: true,
+        confirmButtonText: '確定',
+        cancelButtonText: '取消',
+        customClass: {
+            popup: 'swal-high-z-index'
+        },
+        inputValidator: (value) => {
+            if (!value) {
+                return '請輸入密碼';
+            }
+        }
+    });
+    
+    if (result.isConfirmed && result.value) {
+        return result.value;
+    }
+    return null;
+}
+
+// 檢查並驗證密碼（如果需要）
+async function checkPasswordProtection() {
+    // 如果沒有密碼保護，直接通過
+    if (!pdfPasswordHash) {
+        return true;
+    }
+    
+    // 如果當前會話已經驗證過密碼，直接通過
+    if (currentSessionPassword) {
+        const isValid = await verifyPassword(currentSessionPassword);
+        if (isValid) {
+            return true;
+        }
+        // 會話密碼無效，清除並重新驗證
+        currentSessionPassword = null;
+    }
+    
+    // 要求輸入密碼
+    const password = await promptPassword('輸入密碼', '此PDF標記已受密碼保護，請輸入密碼以編輯標記');
+    if (!password) {
+        return false; // 用戶取消
+    }
+    
+    // 驗證密碼
+    const isValid = await verifyPassword(password);
+    if (isValid) {
+        // 保存當前會話密碼
+        currentSessionPassword = password;
+        return true;
+    } else {
+        Swal.fire({
+            icon: 'error',
+            title: '密碼錯誤',
+            text: '輸入的密碼不正確',
+            timer: 2000,
+            showConfirmButton: false,
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        return false;
+    }
+}
+
+// 設定PDF標記密碼（獨立函數）
+async function setPasswordForPdf() {
+    if (!pdfDoc || !originalPdfBytes) {
+        Swal.fire({
+            icon: 'warning',
+            title: '無法設定',
+            text: '請先載入PDF檔案',
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        return;
+    }
+    
+    // 檢查 PDFLib 是否已載入
+    if (typeof PDFLib === 'undefined') {
+        Swal.fire({
+            icon: 'error',
+            title: '庫未載入',
+            text: 'PDF-lib 庫尚未載入，請刷新頁面後重試',
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        return;
+    }
+    
+    // 詢問是否要設置密碼保護
+    const passwordResult = await Swal.fire({
+        title: '設定密碼保護',
+        html: `
+            <div style="text-align: left; margin-bottom: 15px;">
+                <p style="font-size: 13px; color: #666; margin-bottom: 15px;">設定密碼後，日後編輯、刪除或增加標記時需要輸入密碼</p>
+            </div>
+            <div style="text-align: left; width: 100%; box-sizing: border-box;">
+                <label for="passwordInput" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 18px; color: #333;">密碼（留空則移除密碼保護）：</label>
+                <input type="password" id="passwordInput" class="swal2-input" placeholder="輸入密碼" style="width: 95%; font-size: 14px; box-sizing: border-box;">
+            </div>
+            <div style="text-align: left; margin-top: 15px; width: 100%; box-sizing: border-box;">
+                <label for="confirmPasswordInput" style="display: block; margin-bottom: 8px; font-weight: bold; font-size: 18px; color: #333;">確認密碼：</label>
+                <input type="password" id="confirmPasswordInput" class="swal2-input" placeholder="再次輸入密碼" style="width: 95%; font-size: 14px; box-sizing: border-box;">
+            </div>
+        `,
+        width: '70%',
+        maxWidth: '450px',
+        showCancelButton: true,
+        confirmButtonText: '確定',
+        cancelButtonText: '取消',
+        customClass: {
+            popup: 'swal-high-z-index'
+        },
+        didOpen: () => {
+            const passwordInput = document.getElementById('passwordInput');
+            if (passwordInput) {
+                passwordInput.focus();
+            }
+        },
+        preConfirm: () => {
+            const passwordInput = document.getElementById('passwordInput');
+            const confirmPasswordInput = document.getElementById('confirmPasswordInput');
+            const password = passwordInput ? passwordInput.value : '';
+            const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : '';
+            
+            if (password && password !== confirmPassword) {
+                Swal.showValidationMessage('兩次輸入的密碼不一致');
+                return false;
+            }
+            
+            return password;
+        }
+    });
+    
+    if (!passwordResult.isConfirmed) {
+        return; // 用戶取消
+    }
+    
+    try {
+        Swal.fire({
+            title: '正在設定',
+            text: '正在設定密碼保護...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            },
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        
+        const { PDFDocument } = PDFLib;
+        const pdfDocLib = await PDFDocument.load(originalPdfBytes);
+        
+        let passwordHash = null;
+        if (passwordResult.value && passwordResult.value.trim()) {
+            passwordHash = await hashPassword(passwordResult.value.trim());
+            // 保存當前會話密碼
+            currentSessionPassword = passwordResult.value.trim();
+        } else {
+            // 清除密碼
+            currentSessionPassword = null;
+        }
+        
+        // 處理 keywords 陣列
+        let keywordsArray = pdfDocLib.getKeywords() || [];
+        if (typeof keywordsArray === 'string') {
+            keywordsArray = keywordsArray ? [keywordsArray] : [];
+        } else if (!Array.isArray(keywordsArray)) {
+            keywordsArray = [];
+        }
+        
+        if (passwordHash) {
+            // 移除舊的密碼標記（如果存在）
+            keywordsArray = keywordsArray.filter(k => !k.includes('PDF_MARKS_PASSWORD:'));
+            // 添加新的密碼標記
+            keywordsArray.push(`PDF_MARKS_PASSWORD:${passwordHash}`);
+            pdfDocLib.setKeywords(keywordsArray);
+            // 更新當前會話的密碼哈希
+            pdfPasswordHash = passwordHash;
+        } else {
+            // 清除密碼（如果之前有設置）
+            keywordsArray = keywordsArray.filter(k => !k.includes('PDF_MARKS_PASSWORD:'));
+            pdfDocLib.setKeywords(keywordsArray);
+            // 清除密碼哈希
+            pdfPasswordHash = null;
+            currentSessionPassword = null;
+        }
+        
+        // 保存更新後的PDF字節
+        const pdfBytes = await pdfDocLib.save();
+        originalPdfBytes = pdfBytes;
+        
+        // 更新IndexedDB中的PDF
+        const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileParam = urlParams.get('file');
+        const fileName = fileParam || 'marked_document.pdf';
+        const file = new File([blob], fileName, { type: 'application/pdf' });
+        await saveFileToIndexedDB(file);
+        
+        Swal.fire({
+            icon: 'success',
+            title: '設定成功',
+            text: passwordHash ? '密碼保護已設定' : '密碼保護已移除',
+            timer: 1500,
+            showConfirmButton: false,
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+    } catch (error) {
+        console.error('設定密碼失敗:', error);
+        Swal.fire({
+            icon: 'error',
+            title: '設定失敗',
+            text: '無法設定密碼保護: ' + error.message,
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+    }
+}
+
+// AI標記功能
+async function aiMarkPdf() {
+    if (!pdfDoc || !originalPdfBytes) {
+        Swal.fire({
+            icon: 'warning',
+            title: '無法標記',
+            text: '請先載入PDF檔案',
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        return;
+    }
+    
+    // 檢查是否有API KEY
+    const apiKey = await loadApiKeyFromIndexedDB();
+    if (!apiKey) {
+        Swal.fire({
+            icon: 'warning',
+            title: '需要API KEY',
+            text: '請先設定Gemini API KEY才能使用AI標記功能',
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        return;
+    }
+    
+    // 檢查是否已有標記
+    const hasExistingMarks = Object.keys(marks).length > 0 && 
+        Object.values(marks).some(pageMarks => Array.isArray(pageMarks) && pageMarks.length > 0);
+    
+    let isSupplementMode = false; // 是否為補充模式
+    if (hasExistingMarks) {
+        const confirmResult = await Swal.fire({
+            icon: 'info',
+            title: '選擇標記模式',
+            html: `
+                <p>PDF中已有標記，請選擇：</p>
+                <p style="margin-top: 15px;">
+                    <strong>補充模式</strong>：AI將模仿現有標記風格，只補充未標記的區域，保留所有現有標記<br>
+                    <strong>重新標記</strong>：刪除所有現有標記，重新進行AI標記
+                </p>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '補充模式',
+            cancelButtonText: '重新標記',
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#dc3545',
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        
+        if (confirmResult.isConfirmed) {
+            // 用戶選擇補充模式
+            isSupplementMode = true;
+        } else if (confirmResult.dismiss === Swal.DismissReason.cancel) {
+            // 用戶選擇重新標記，清除現有標記
+            // 將在後面清除
+        } else {
+            // 用戶關閉對話框
+            return;
+        }
+    }
+    
+    // 用於追蹤是否被取消
+    let isCancelled = false;
+    
+    try {
+        const swalInstance = Swal.fire({
+            title: 'AI標記中',
+            text: '正在使用AI分析PDF內容並生成標記...',
+            allowOutsideClick: false,
+            showCancelButton: true,
+            cancelButtonText: '取消',
+            confirmButtonText: '',
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+                // 監聽取消按鈕點擊
+                const cancelButton = document.querySelector('.swal2-cancel');
+                if (cancelButton) {
+                    cancelButton.addEventListener('click', () => {
+                        isCancelled = true;
+                    });
+                }
+            },
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        
+        // 也監聽Swal的取消事件
+        swalInstance.then((result) => {
+            // 如果用戶點擊取消
+            if (result.dismiss === Swal.DismissReason.cancel) {
+                isCancelled = true;
+            }
+        });
+        
+        // 如果不是補充模式，清除現有標記
+        if (!isSupplementMode) {
+            marks = {};
+            markIdCounter = 0;
+        }
+        
+        // 保存現有標記信息（用於補充模式）
+        const existingMarksInfo = {};
+        if (isSupplementMode) {
+            // 收集現有標記的信息，作為示例傳給AI
+            for (const pageNum in marks) {
+                if (marks[pageNum] && Array.isArray(marks[pageNum]) && marks[pageNum].length > 0) {
+                    existingMarksInfo[pageNum] = marks[pageNum].map(mark => ({
+                        text: mark.text || '',
+                        description: mark.replacementText ? `替換為：${mark.replacementText}` : '原始文字'
+                    }));
+                }
+            }
+        }
+        
+        // 遍歷所有頁面進行標記
+        const totalPages = pdfDoc.numPages;
+        let totalCreatedMarksCount = 0;
+        
+        // 保存當前頁面，標記完成後恢復
+        const originalCurrentPage = currentPage;
+        
+        // 逐頁處理
+        for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+            // 檢查是否被取消
+            if (isCancelled) {
+                Swal.close();
+                // 恢復到原始頁面
+                currentPage = originalCurrentPage;
+                renderPage(currentPage);
+                Swal.fire({
+                    icon: 'info',
+                    title: '已取消',
+                    text: `已取消AI標記，已處理 ${pageNum - 1} / ${totalPages} 頁`,
+                    timer: 2000,
+                    showConfirmButton: false,
+                    customClass: {
+                        popup: 'swal-high-z-index'
+                    }
+                });
+                return;
+            }
+            
+            // 更新進度顯示（包含取消按鈕）
+            Swal.update({
+                title: 'AI標記中',
+                text: `正在處理第 ${pageNum} / ${totalPages} 頁...`,
+                allowOutsideClick: false,
+                showCancelButton: true,
+                cancelButtonText: '取消',
+                showConfirmButton: false
+            });
+            
+            // 渲染當前頁面以獲取文字層和標記層
+            await new Promise((resolve) => {
+                const oldPage = currentPage;
+                currentPage = pageNum;
+                renderPage(pageNum);
+                // 等待頁面渲染完成
+                setTimeout(() => {
+                    resolve();
+                }, 500);
+            });
+            
+            // 獲取當前頁面的文字內容
+            const page = await pdfDoc.getPage(pageNum);
+            const textContent = await page.getTextContent();
+            
+            // 提取所有文字
+            let fullText = '';
+            textContent.items.forEach(item => {
+                if (item.str) {
+                    fullText += item.str + ' ';
+                }
+            });
+            
+            // 檢查是否被取消
+            if (isCancelled) {
+                Swal.close();
+                // 恢復到原始頁面
+                currentPage = originalCurrentPage;
+                renderPage(currentPage);
+                Swal.fire({
+                    icon: 'info',
+                    title: '已取消',
+                    text: `已取消AI標記，已處理 ${pageNum - 1} / ${totalPages} 頁`,
+                    timer: 2000,
+                    showConfirmButton: false,
+                    customClass: {
+                        popup: 'swal-high-z-index'
+                    }
+                });
+                return;
+            }
+            
+            // 如果頁面沒有文字，跳過
+            if (!fullText.trim()) {
+                console.log(`第 ${pageNum} 頁沒有文字內容，跳過`);
+                continue;
+            }
+            
+            // 調用Gemini API分析文字並生成標記建議
+            const prompt = `請分析以下PDF頁面的文字內容，根據語意和邏輯結構，識別出應該被標記的重要區塊。
+
+**標記規則：**
+
+1. **考卷類內容識別**：
+   - 如果內容包含題號（如「1.」「2.」「第1題」等）和選擇題選項（如「(A)」「(B)」「(C)」「(D)」或「A.」「B.」「C.」「D.」或「①」「②」「③」「④」等），則判定為考卷類內容
+   
+2. **考卷類內容的標記方式**：
+   - 將每一題的**題幹和所有選項**標記為**同一個區塊**
+   - 例如：第1題包含題幹「下列哪個選項正確？」和選項「(A)選項1 (B)選項2 (C)選項3 (D)選項4」，則將整個內容（從題號到最後一個選項）標記為一個區塊
+   - 每題獨立標記，不要將多題合併成一個區塊
+   - 確保題幹和所有選項都在同一個區塊內
+
+3. **一般內容的標記方式**（非考卷類，如文章、說明、段落等）：
+   - 以正常段落為單位標記
+   - 每個完整的段落、標題、重要說明等標記為一個區塊
+   - 保持語意完整性
+
+請以JSON格式返回標記建議，格式如下：
+{
+  "marks": [
+    {
+      "text": "要標記的文字內容（考卷：完整包含題幹和所有選項；一般內容：完整段落）",
+      "description": "這個標記的說明"
+    }
+  ]
+}
+
+文字內容：
+${fullText.trim()}
+
+請只返回JSON格式，不要包含其他說明文字。`;
+            
+            // 檢查是否被取消（在API調用前）
+            if (isCancelled) {
+                Swal.close();
+                // 恢復到原始頁面
+                currentPage = originalCurrentPage;
+                renderPage(currentPage);
+                Swal.fire({
+                    icon: 'info',
+                    title: '已取消',
+                    text: `已取消AI標記，已處理 ${pageNum - 1} / ${totalPages} 頁`,
+                    timer: 2000,
+                    showConfirmButton: false,
+                    customClass: {
+                        popup: 'swal-high-z-index'
+                    }
+                });
+                return;
+            }
+            
+            try {
+                const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        contents: [
+                            {
+                                role: "user",
+                                parts: [
+                                    { text: prompt }
+                                ]
+                            }
+                        ]
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error(`第 ${pageNum} 頁 Gemini API 回應錯誤:`, response.status, errorText);
+                    continue; // 跳過這一頁，繼續處理下一頁
+                }
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error(`第 ${pageNum} 頁 Gemini API 錯誤:`, data.error);
+                    continue; // 跳過這一頁，繼續處理下一頁
+                }
+                
+                if (!data.candidates || data.candidates.length === 0) {
+                    console.warn(`第 ${pageNum} 頁 API 回應中沒有結果`);
+                    continue; // 跳過這一頁，繼續處理下一頁
+                }
+                
+                // 檢查是否被取消（在處理AI回應前）
+                if (isCancelled) {
+                    Swal.close();
+                    // 恢復到原始頁面
+                    currentPage = originalCurrentPage;
+                    renderPage(currentPage);
+                    Swal.fire({
+                        icon: 'info',
+                        title: '已取消',
+                        text: `已取消AI標記，已處理 ${pageNum - 1} / ${totalPages} 頁`,
+                        timer: 2000,
+                        showConfirmButton: false,
+                        customClass: {
+                            popup: 'swal-high-z-index'
+                        }
+                    });
+                    return;
+                }
+                
+                const aiResponse = data.candidates[0].content.parts[0].text;
+                console.log(`第 ${pageNum} 頁 AI回應:`, aiResponse);
+                
+                // 解析AI回應（嘗試提取JSON）
+                let markSuggestions = [];
+                try {
+                    // 嘗試提取JSON部分
+                    const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+                    if (jsonMatch) {
+                        const jsonData = JSON.parse(jsonMatch[0]);
+                        if (jsonData.marks && Array.isArray(jsonData.marks)) {
+                            markSuggestions = jsonData.marks;
+                        }
+                    }
+                } catch (parseError) {
+                    console.error(`第 ${pageNum} 頁 解析AI回應失敗:`, parseError);
+                    continue; // 跳過這一頁，繼續處理下一頁
+                }
+                
+                if (markSuggestions.length === 0) {
+                    console.log(`第 ${pageNum} 頁 AI無法識別出需要標記的內容`);
+                    continue; // 跳過這一頁，繼續處理下一頁
+                }
+                
+                // 根據AI建議創建標記
+                // 需要在文字層中找到對應的文字位置
+                const textLayer = document.querySelector('.textLayer');
+                if (!textLayer) {
+                    console.warn(`第 ${pageNum} 頁 找不到文字層`);
+                    continue; // 跳過這一頁，繼續處理下一頁
+                }
+                
+                const textLayerRect = textLayer.getBoundingClientRect();
+                const markLayer = document.querySelector(`.mark-layer[data-page-num="${pageNum}"]`);
+                if (!markLayer) {
+                    console.warn(`第 ${pageNum} 頁 找不到標記層`);
+                    continue; // 跳過這一頁，繼續處理下一頁
+                }
+                
+                const markLayerRect = markLayer.getBoundingClientRect();
+                const spans = textLayer.getElementsByTagName('my-fra');
+                
+                // 為每個AI建議創建標記
+                let pageCreatedMarksCount = 0;
+                
+                // 先收集所有span的文字和位置信息（保持原始順序用於文字匹配）
+                const spanData = [];
+                for (let span of spans) {
+                    const rect = span.getBoundingClientRect();
+                    spanData.push({
+                        span: span,
+                        text: span.textContent,
+                        x: rect.left - textLayerRect.left,
+                        y: rect.top - textLayerRect.top,
+                        right: rect.right - textLayerRect.left,
+                        bottom: rect.bottom - textLayerRect.top,
+                        centerX: (rect.left + rect.right) / 2 - textLayerRect.left,
+                        centerY: (rect.top + rect.bottom) / 2 - textLayerRect.top
+                    });
+                }
+                
+                // 構建完整文字和位置映射（使用原始順序，確保與AI返回的文字匹配）
+                let fullTextFromSpans = '';
+                spanData.forEach(data => {
+                    fullTextFromSpans += data.text;
+                });
+                
+                // 檢測是否為直書（用於後續座標計算優化）
+                let verticalTextDetected = false;
+                if (spanData.length > 10) {
+                    let narrowSpans = 0;
+                    let xVariance = 0;
+                    let avgX = 0;
+                    let avgWidth = 0;
+                    
+                    spanData.forEach(data => {
+                        const width = data.right - data.x;
+                        const height = data.bottom - data.y;
+                        avgX += data.centerX;
+                        avgWidth += width;
+                        if (width < height * 0.8) {
+                            narrowSpans++;
+                        }
+                    });
+                    
+                    avgX /= spanData.length;
+                    avgWidth /= spanData.length;
+                    
+                    spanData.forEach(data => {
+                        xVariance += Math.pow(data.centerX - avgX, 2);
+                    });
+                    xVariance = Math.sqrt(xVariance / spanData.length);
+                    
+                    // 如果大部分span是窄的（寬度小於高度），且X座標變化較小，判定為直書
+                    if (narrowSpans > spanData.length * 0.6 && xVariance < avgWidth * 3) {
+                        verticalTextDetected = true;
+                    }
+                }
+                
+                for (const suggestion of markSuggestions) {
+                    const targetText = suggestion.text.trim();
+                    if (!targetText) continue;
+                    
+                    // 在完整文字中查找目標文字的位置
+                    const targetIndex = fullTextFromSpans.indexOf(targetText);
+                    if (targetIndex === -1) {
+                        // 嘗試模糊匹配（移除空格）
+                        const targetTextNoSpace = targetText.replace(/\s+/g, '');
+                        const fullTextNoSpace = fullTextFromSpans.replace(/\s+/g, '');
+                        const fuzzyIndex = fullTextNoSpace.indexOf(targetTextNoSpace);
+                        if (fuzzyIndex === -1) continue;
+                        
+                        // 使用模糊匹配的位置（近似）
+                        let charCount = 0;
+                        let startSpanIndex = -1;
+                        let endSpanIndex = -1;
+                        
+                        for (let i = 0; i < spanData.length; i++) {
+                            const prevCount = charCount;
+                            charCount += spanData[i].text.replace(/\s+/g, '').length;
+                            if (startSpanIndex === -1 && charCount > fuzzyIndex) {
+                                startSpanIndex = i;
+                            }
+                            if (charCount >= fuzzyIndex + targetTextNoSpace.length) {
+                                endSpanIndex = i;
+                                break;
+                            }
+                        }
+                        
+                        if (startSpanIndex !== -1 && endSpanIndex !== -1) {
+                            // 收集所有相關的span數據
+                            const relevantSpans = [];
+                            for (let i = startSpanIndex; i <= endSpanIndex; i++) {
+                                relevantSpans.push(spanData[i]);
+                            }
+                            
+                            // 計算邊界框（考慮直書和橫書）
+                            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                            relevantSpans.forEach(data => {
+                                minX = Math.min(minX, data.x);
+                                minY = Math.min(minY, data.y);
+                                maxX = Math.max(maxX, data.right);
+                                maxY = Math.max(maxY, data.bottom);
+                            });
+                            
+                            const x = minX;
+                            const y = minY;
+                            const width = maxX - minX;
+                            const height = maxY - minY;
+                            
+                            // 轉換為相對於標記層的座標
+                            const markX = x + (textLayerRect.left - markLayerRect.left);
+                            const markY = y + (textLayerRect.top - markLayerRect.top);
+                            
+                            if (width > 10 && height > 10) {
+                                // 檢查是否與現有標記重疊（補充模式）
+                                if (isSupplementMode && marks[pageNum]) {
+                                    let overlaps = false;
+                                    for (const existingMark of marks[pageNum]) {
+                                        // 計算重疊區域
+                                        const overlapX = Math.max(0, Math.min(markX + width, existingMark.x + existingMark.width) - Math.max(markX, existingMark.x));
+                                        const overlapY = Math.max(0, Math.min(markY + height, existingMark.y + existingMark.height) - Math.max(markY, existingMark.y));
+                                        const overlapArea = overlapX * overlapY;
+                                        const newMarkArea = width * height;
+                                        const existingMarkArea = existingMark.width * existingMark.height;
+                                        
+                                        // 如果重疊面積超過新標記或現有標記的30%，認為是重疊
+                                        if (overlapArea > newMarkArea * 0.3 || overlapArea > existingMarkArea * 0.3) {
+                                            overlaps = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (overlaps) {
+                                        console.log(`第 ${pageNum} 頁 跳過與現有標記重疊的標記:`, targetText.substring(0, 20));
+                                        continue; // 跳過重疊的標記
+                                    }
+                                }
+                                
+                                if (!marks[pageNum]) {
+                                    marks[pageNum] = [];
+                                }
+                                
+                                const mark = {
+                                    id: markIdCounter++,
+                                    x: markX,
+                                    y: markY,
+                                    width: width,
+                                    height: height,
+                                    text: targetText,
+                                    replacementText: ''
+                                };
+                                
+                                marks[pageNum].push(mark);
+                                pageCreatedMarksCount++;
+                            }
+                        }
+                    } else {
+                        // 精確匹配
+                        let charCount = 0;
+                        let startSpanIndex = -1;
+                        let endSpanIndex = -1;
+                        
+                        for (let i = 0; i < spanData.length; i++) {
+                            const prevCount = charCount;
+                            charCount += spanData[i].text.length;
+                            if (startSpanIndex === -1 && charCount > targetIndex) {
+                                startSpanIndex = i;
+                            }
+                            if (charCount >= targetIndex + targetText.length) {
+                                endSpanIndex = i;
+                                break;
+                            }
+                        }
+                        
+                        if (startSpanIndex !== -1 && endSpanIndex !== -1) {
+                            // 收集所有相關的span數據
+                            const relevantSpans = [];
+                            for (let i = startSpanIndex; i <= endSpanIndex; i++) {
+                                relevantSpans.push(spanData[i]);
+                            }
+                            
+                            // 計算邊界框（考慮直書和橫書）
+                            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+                            relevantSpans.forEach(data => {
+                                minX = Math.min(minX, data.x);
+                                minY = Math.min(minY, data.y);
+                                maxX = Math.max(maxX, data.right);
+                                maxY = Math.max(maxY, data.bottom);
+                            });
+                            
+                            const x = minX;
+                            const y = minY;
+                            const width = maxX - minX;
+                            const height = maxY - minY;
+                            
+                            // 轉換為相對於標記層的座標
+                            const markX = x + (textLayerRect.left - markLayerRect.left);
+                            const markY = y + (textLayerRect.top - markLayerRect.top);
+                            
+                            if (width > 10 && height > 10) {
+                                // 檢查是否與現有標記重疊（補充模式）
+                                if (isSupplementMode && marks[pageNum]) {
+                                    let overlaps = false;
+                                    for (const existingMark of marks[pageNum]) {
+                                        // 計算重疊區域
+                                        const overlapX = Math.max(0, Math.min(markX + width, existingMark.x + existingMark.width) - Math.max(markX, existingMark.x));
+                                        const overlapY = Math.max(0, Math.min(markY + height, existingMark.y + existingMark.height) - Math.max(markY, existingMark.y));
+                                        const overlapArea = overlapX * overlapY;
+                                        const newMarkArea = width * height;
+                                        const existingMarkArea = existingMark.width * existingMark.height;
+                                        
+                                        // 如果重疊面積超過新標記或現有標記的30%，認為是重疊
+                                        if (overlapArea > newMarkArea * 0.3 || overlapArea > existingMarkArea * 0.3) {
+                                            overlaps = true;
+                                            break;
+                                        }
+                                    }
+                                    
+                                    if (overlaps) {
+                                        console.log(`第 ${pageNum} 頁 跳過與現有標記重疊的標記:`, targetText.substring(0, 20));
+                                        continue; // 跳過重疊的標記
+                                    }
+                                }
+                                
+                                if (!marks[pageNum]) {
+                                    marks[pageNum] = [];
+                                }
+                                
+                                const mark = {
+                                    id: markIdCounter++,
+                                    x: markX,
+                                    y: markY,
+                                    width: width,
+                                    height: height,
+                                    text: targetText,
+                                    replacementText: ''
+                                };
+                                
+                                marks[pageNum].push(mark);
+                                pageCreatedMarksCount++;
+                            }
+                        }
+                    }
+                }
+                
+                totalCreatedMarksCount += pageCreatedMarksCount;
+                console.log(`第 ${pageNum} 頁創建了 ${pageCreatedMarksCount} 個標記`);
+            } catch (pageError) {
+                console.error(`第 ${pageNum} 頁處理失敗:`, pageError);
+                // 繼續處理下一頁
+                continue;
+            }
+        }
+        
+        // 恢復到原始頁面
+        currentPage = originalCurrentPage;
+        renderPage(currentPage);
+        
+        // 檢查是否被取消（在最後檢查一次）
+        if (isCancelled) {
+            // 恢復到原始頁面
+            currentPage = originalCurrentPage;
+            renderPage(currentPage);
+            return;
+        }
+        
+        Swal.close();
+        
+        if (totalCreatedMarksCount > 0) {
+            // 渲染標記
+            renderMarks();
+            
+            // 保存標記到PDF
+            await saveMarksToPdf();
+            
+            Swal.fire({
+                icon: 'success',
+                title: isSupplementMode ? 'AI補充標記完成' : 'AI標記完成',
+                text: isSupplementMode 
+                    ? `已成功處理 ${totalPages} 頁，共補充 ${totalCreatedMarksCount} 個新標記，現有標記已保留，您可以手動編輯或調整這些標記`
+                    : `已成功處理 ${totalPages} 頁，共創建 ${totalCreatedMarksCount} 個標記，您可以手動編輯或調整這些標記`,
+                timer: 2000,
+                showConfirmButton: false,
+                customClass: {
+                    popup: 'swal-high-z-index'
+                }
+            });
+        } else {
+            Swal.fire({
+                icon: 'warning',
+                title: '無法創建標記',
+                text: `已處理 ${totalPages} 頁，但無法創建任何標記`,
+                timer: 2000,
+                showConfirmButton: false,
+                customClass: {
+                    popup: 'swal-high-z-index'
+                }
+            });
+        }
+    } catch (error) {
+        console.error('AI標記失敗:', error);
+        Swal.close();
+        Swal.fire({
+            icon: 'error',
+            title: 'AI標記失敗',
+            text: '無法完成AI標記: ' + error.message,
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+    }
+}
+
+// 啟用手動標記功能（獨立函數，不依賴 toggleMarkingMode）
+function enableManualMarking() {
+    console.log('enableManualMarking 被調用, isMarkingMode:', isMarkingMode, 'isManualMarkingEnabled:', isManualMarkingEnabled);
+    
+    // 如果已經啟用，直接返回，防止重複點擊
+    if (isManualMarkingEnabled) {
+        console.log('手動標記已經啟用，跳過重複調用');
+        return;
+    }
+    
+    if (!pdfDoc) {
+        Swal.fire({
+            icon: 'warning',
+            title: '無法標記',
+            text: '請先載入PDF檔案',
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+        return;
+    }
+    
+    // 確保標記模式已啟用（如果沒有，直接返回，因為應該由 toggleMarkingMode 來設置）
+    if (!isMarkingMode) {
+        console.log('標記模式未啟用，跳過 enableManualMarking');
+        return;
+    }
+    
+    // 使用CSS類來設置十字游標（立即設置，確保游標立即顯示）
+    document.body.classList.add('marking-mode-active');
+    document.body.style.cursor = 'crosshair';
+    console.log('已設置 body 十字游標');
+    
+    // 確保 PDF viewer 和 canvas 也顯示十字游標（使用!important確保優先級）
+    let pdfViewersForCursor = document.querySelectorAll('.pdf-viewer');
+    console.log('找到 PDF viewers:', pdfViewersForCursor.length);
+    pdfViewersForCursor.forEach(viewer => {
+        viewer.style.setProperty('cursor', 'crosshair', 'important');
+        viewer.style.cursor = 'crosshair';
+    });
+    let canvasesForCursor = document.querySelectorAll('canvas');
+    console.log('找到 canvases:', canvasesForCursor.length);
+    canvasesForCursor.forEach(canvas => {
+        canvas.style.setProperty('cursor', 'crosshair', 'important');
+        canvas.style.cursor = 'crosshair';
+    });
+    
+    // 啟用標記層的事件和顯示
+    const markLayers = document.querySelectorAll('.mark-layer');
+    console.log('找到標記層:', markLayers.length);
+    markLayers.forEach(layer => {
+        layer.classList.add('marking-mode');
+        layer.classList.remove('hidden');
+        layer.style.display = 'block';
+        layer.style.visibility = 'visible';
+        layer.style.pointerEvents = 'auto';
+        // 確保標記層在最上層，不被 textLayer 遮擋
+        layer.style.zIndex = '201';
+        console.log('已設置標記層樣式:', layer.dataset.pageNum);
+    });
+    
+    // 確保 textLayer 不會遮擋標記層（在標記模式下）
+    const textLayers = document.querySelectorAll('.textLayer');
+    textLayers.forEach(textLayer => {
+        // 在標記模式下，textLayer 應該在標記層下方
+        textLayer.style.pointerEvents = 'none'; // 讓點擊事件穿透到標記層
+        console.log('已設置 textLayer pointer-events: none');
+    });
+    
+    // 在 PDF viewer 和標記層上綁定事件（立即綁定）
+    let pdfViewersForEvents = document.querySelectorAll('.pdf-viewer');
+    console.log('找到 PDF viewers 用於事件綁定:', pdfViewersForEvents.length);
+    pdfViewersForEvents.forEach(viewer => {
+        viewer.removeEventListener('mousedown', handleViewerMouseDown);
+        viewer.removeEventListener('touchstart', handleViewerTouchStart);
+        viewer.addEventListener('mousedown', handleViewerMouseDown);
+        viewer.addEventListener('touchstart', handleViewerTouchStart);
+        console.log('已為 PDF viewer 綁定事件');
+    });
+    
+    const markLayersForEvents = document.querySelectorAll('.mark-layer');
+    console.log('找到標記層 用於事件綁定:', markLayersForEvents.length);
+    markLayersForEvents.forEach(layer => {
+        layer.removeEventListener('mousedown', handleViewerMouseDown);
+        layer.removeEventListener('touchstart', handleViewerTouchStart);
+        layer.addEventListener('mousedown', handleViewerMouseDown);
+        layer.addEventListener('touchstart', handleViewerTouchStart);
+        console.log('已為標記層綁定事件');
+    });
+    
+    // 如果當前沒有 PDF viewer，等待頁面渲染完成後再綁定
+    if (pdfViewersForEvents.length === 0) {
+        console.log('當前沒有 PDF viewer，等待頁面渲染...');
+        setTimeout(() => {
+            pdfViewersForEvents = document.querySelectorAll('.pdf-viewer');
+            pdfViewersForEvents.forEach(viewer => {
+                viewer.removeEventListener('mousedown', handleViewerMouseDown);
+                viewer.removeEventListener('touchstart', handleViewerTouchStart);
+                viewer.addEventListener('mousedown', handleViewerMouseDown);
+                viewer.addEventListener('touchstart', handleViewerTouchStart);
+                console.log('延遲綁定 PDF viewer 事件');
+            });
+        }, 100);
+    }
+    
+    // 渲染現有標記
+    renderMarks();
+    
+    // 標記手動標記已啟用
+    isManualMarkingEnabled = true;
+    
+    // 確保標記區塊樣式正確
+    requestAnimationFrame(() => {
+        const markBlocks = document.querySelectorAll('.mark-block');
+        console.log('找到標記區塊:', markBlocks.length);
+        markBlocks.forEach(block => {
+            block.style.display = 'block';
+            block.style.visibility = 'visible';
+            block.style.opacity = '1';
+            block.style.border = '3px solid #007BFF';
+            block.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+        });
+    });
+    
+    // 不顯示提示訊息，因為已經在 toggleMarkingMode 中處理了
+    console.log('手動標記功能已啟用');
+}
 
 // 初始化標記功能
 function initMarkingFeature() {
@@ -2559,7 +3845,10 @@ function initMarkingFeature() {
     const clearButton = document.getElementById('clearMarksButton');
     
     // 工具欄中的按鈕
-    const markButtonToolbar = document.getElementById('markBlockButtonToolbar');
+    const cancelMarkingButtonToolbar = document.getElementById('cancelMarkingButtonToolbar');
+    const manualMarkButtonToolbar = document.getElementById('manualMarkButtonToolbar');
+    const aiMarkButtonToolbar = document.getElementById('aiMarkButtonToolbar');
+    const setPasswordButtonToolbar = document.getElementById('setPasswordButtonToolbar');
     const saveButtonToolbar = document.getElementById('saveMarkedPdfButtonToolbar');
     const downloadButtonToolbar = document.getElementById('downloadMarkedPdfButtonToolbar');
     const clearButtonToolbar = document.getElementById('clearMarksButtonToolbar');
@@ -2571,7 +3860,20 @@ function initMarkingFeature() {
     if (clearButton) clearButton.addEventListener('click', clearAllMarks);
     
     // 綁定工具欄中的按鈕事件
-    if (markButtonToolbar) markButtonToolbar.addEventListener('click', toggleMarkingMode);
+    if (cancelMarkingButtonToolbar) cancelMarkingButtonToolbar.addEventListener('click', toggleMarkingMode);
+    if (manualMarkButtonToolbar) {
+        manualMarkButtonToolbar.addEventListener('click', function(e) {
+            console.log('手動標記按鈕被點擊', e);
+            e.preventDefault();
+            e.stopPropagation();
+            enableManualMarking();
+        });
+        console.log('已綁定手動標記按鈕');
+    } else {
+        console.error('找不到手動標記按鈕元素');
+    }
+    if (aiMarkButtonToolbar) aiMarkButtonToolbar.addEventListener('click', aiMarkPdf);
+    if (setPasswordButtonToolbar) setPasswordButtonToolbar.addEventListener('click', setPasswordForPdf);
     if (saveButtonToolbar) saveButtonToolbar.addEventListener('click', saveMarksToPdf);
     if (downloadButtonToolbar) downloadButtonToolbar.addEventListener('click', downloadMarkedPdf);
     if (clearButtonToolbar) clearButtonToolbar.addEventListener('click', clearAllMarks);
@@ -2581,15 +3883,30 @@ function initMarkingFeature() {
 }
 
 // 切換標記模式
-function toggleMarkingMode() {
+async function toggleMarkingMode() {
+    console.log('toggleMarkingMode 被調用，當前 isMarkingMode:', isMarkingMode);
+    
+    // 如果進入標記模式，檢查密碼保護
+    if (!isMarkingMode) {
+        const hasAccess = await checkPasswordProtection();
+        console.log('密碼檢查結果:', hasAccess);
+        if (!hasAccess) {
+            console.log('密碼驗證失敗，不進入標記模式');
+            return; // 密碼驗證失敗，不進入標記模式
+        }
+    }
+    
     isMarkingMode = !isMarkingMode;
+    console.log('切換後 isMarkingMode:', isMarkingMode);
     const markButton = document.getElementById('markBlockButton');
     const saveButton = document.getElementById('saveMarkedPdfButton');
     const downloadButton = document.getElementById('downloadMarkedPdfButton');
     const clearButton = document.getElementById('clearMarksButton');
     
     // 工具欄中的按鈕
-    const markButtonToolbar = document.getElementById('markBlockButtonToolbar');
+    const cancelMarkingButtonToolbar = document.getElementById('cancelMarkingButtonToolbar');
+    const aiMarkButtonToolbar = document.getElementById('aiMarkButtonToolbar');
+    const setPasswordButtonToolbar = document.getElementById('setPasswordButtonToolbar');
     const saveButtonToolbar = document.getElementById('saveMarkedPdfButtonToolbar');
     const downloadButtonToolbar = document.getElementById('downloadMarkedPdfButtonToolbar');
     const clearButtonToolbar = document.getElementById('clearMarksButtonToolbar');
@@ -2604,9 +3921,10 @@ function toggleMarkingMode() {
         if (apiKeyModal) apiKeyModal.style.display = 'none';
         if (apiKeyModalOverlay) apiKeyModalOverlay.style.display = 'none';
         
-        // 顯示標記功能工具欄（橫向，置頂）
+        // 顯示標記功能工具欄（橫向，置底）
         if (markingToolbar) {
             markingToolbar.classList.add('show');
+            markingToolbar.style.display = 'flex';
         }
         
         // 更新模態視窗中的按鈕
@@ -2619,77 +3937,217 @@ function toggleMarkingMode() {
         if (downloadButton) downloadButton.style.display = 'block';
         if (clearButton) clearButton.style.display = 'block';
         
-        // 更新工具欄中的按鈕
-        if (markButtonToolbar) {
-            markButtonToolbar.textContent = '取消標記';
-            markButtonToolbar.classList.remove('button-success');
-            markButtonToolbar.classList.add('button-danger');
+        // 確保所有工具欄按鈕都顯示（覆蓋內聯樣式）
+        if (cancelMarkingButtonToolbar) {
+            cancelMarkingButtonToolbar.style.display = 'inline-block';
+            cancelMarkingButtonToolbar.style.visibility = 'visible';
         }
-        if (saveButtonToolbar) saveButtonToolbar.style.display = 'inline-block';
-        if (downloadButtonToolbar) downloadButtonToolbar.style.display = 'inline-block';
-        if (clearButtonToolbar) clearButtonToolbar.style.display = 'inline-block';
+        if (aiMarkButtonToolbar) {
+            aiMarkButtonToolbar.style.display = 'inline-block';
+            aiMarkButtonToolbar.style.visibility = 'visible';
+        }
+        if (setPasswordButtonToolbar) {
+            setPasswordButtonToolbar.style.display = 'inline-block';
+            setPasswordButtonToolbar.style.visibility = 'visible';
+        }
+        if (saveButtonToolbar) {
+            saveButtonToolbar.style.display = 'inline-block';
+            saveButtonToolbar.style.visibility = 'visible';
+        }
+        if (downloadButtonToolbar) {
+            downloadButtonToolbar.style.display = 'inline-block';
+            downloadButtonToolbar.style.visibility = 'visible';
+        }
+        if (clearButtonToolbar) {
+            clearButtonToolbar.style.display = 'inline-block';
+            clearButtonToolbar.style.visibility = 'visible';
+        }
         
         // 不顯示 toggleMarksButton，因為只有編輯模式才顯示標記
         if (toggleButton) toggleButton.style.display = 'none';
+        
+        // 使用CSS類來設置十字游標（立即設置，確保游標立即顯示）
+        document.body.classList.add('marking-mode-active');
         document.body.style.cursor = 'crosshair';
         
-        // 調整PDF容器頂部邊距，為工具欄留出空間
+        // 確保 PDF viewer 和 canvas 也顯示十字游標（使用!important確保優先級）
+        let pdfViewersForCursor = document.querySelectorAll('.pdf-viewer');
+        pdfViewersForCursor.forEach(viewer => {
+            viewer.style.setProperty('cursor', 'crosshair', 'important');
+            viewer.style.cursor = 'crosshair';
+        });
+        let canvasesForCursor = document.querySelectorAll('canvas');
+        canvasesForCursor.forEach(canvas => {
+            canvas.style.setProperty('cursor', 'crosshair', 'important');
+            canvas.style.cursor = 'crosshair';
+        });
+        
+        // 調整PDF容器底部邊距，為底部工具欄留出空間
         const pdfContainer = document.getElementById('pdfContainer');
         if (pdfContainer) {
-            pdfContainer.style.marginTop = '60px';
+            pdfContainer.style.marginBottom = '60px';
         }
         
-        // 啟用標記層的事件和顯示
+        // 調整底部元素位置，避免與工具欄重疊
+        const audioPlayer = document.getElementById('audioPlayer');
+        const selectAllTextButton = document.getElementById('select-all-text');
+        const sendButton = document.getElementById('sendButton');
+        const clearButton = document.getElementById('clearButton');
+        const switchVoiceButton = document.getElementById('switchVoiceButton');
+        
+        if (audioPlayer) {
+            audioPlayer.style.bottom = '60px';
+        }
+        if (selectAllTextButton) {
+            selectAllTextButton.style.bottom = '60px';
+        }
+        if (sendButton) {
+            sendButton.style.bottom = '60px';
+        }
+        if (clearButton) {
+            clearButton.style.bottom = '60px';
+        }
+        if (switchVoiceButton) {
+            switchVoiceButton.style.bottom = '60px';
+        }
+        
+        // 啟用標記層的事件和顯示（先設置標記層，再渲染標記）
         const markLayers = document.querySelectorAll('.mark-layer');
         markLayers.forEach(layer => {
             layer.classList.add('marking-mode');
             layer.classList.remove('hidden'); // 確保標記層可見
             layer.style.display = 'block';
             layer.style.visibility = 'visible';
+            // 確保標記層可以接收事件
+            layer.style.pointerEvents = 'auto';
         });
         
-        // 重新渲染標記以確保所有標記都顯示（編輯模式）
-        renderMarks();
+        // 立即渲染標記以確保所有標記都顯示（編輯模式）
+        console.log('開始渲染標記，當前頁碼:', currentPage, '標記數量:', marks[currentPage] ? marks[currentPage].length : 0);
+        // 先立即嘗試渲染，如果標記層不存在則快速重試
+        const tryRenderMarks = (attemptCount = 0) => {
+            const maxAttempts = 10; // 最多嘗試10次（約0.3秒）
+            const currentMarkLayer = document.querySelector(`.mark-layer[data-page-num="${currentPage}"]`);
+            console.log(`嘗試渲染標記 (第${attemptCount + 1}次)，標記層存在:`, !!currentMarkLayer);
+            if (currentMarkLayer) {
+                // 標記層已存在，立即渲染
+                console.log('標記層已找到，立即渲染標記');
+                renderMarks();
+                // 確保標記區塊樣式正確（在 renderMarks 完成後立即設置）
+                requestAnimationFrame(() => {
+                    const markBlocks = document.querySelectorAll('.mark-block');
+                    console.log('找到標記區塊:', markBlocks.length);
+                    markBlocks.forEach(block => {
+                        block.style.display = 'block';
+                        block.style.visibility = 'visible';
+                        block.style.opacity = '1';
+                        // 恢復邊框和背景色
+                        block.style.border = '3px solid #007BFF';
+                        block.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
+                        // 顯示標籤、編輯按鈕和刪除按鈕
+                        const label = block.querySelector('.mark-label');
+                        const editBtn = block.querySelector('.mark-edit');
+                        const deleteBtn = block.querySelector('.mark-delete');
+                        if (label) {
+                            label.style.display = 'block';
+                        }
+                        if (editBtn) {
+                            editBtn.style.display = 'flex';
+                        }
+                        if (deleteBtn) {
+                            deleteBtn.style.display = 'flex';
+                        }
+                    });
+                });
+            } else if (attemptCount < maxAttempts) {
+                // 標記層還不存在，快速重試（減少延遲）
+                setTimeout(() => tryRenderMarks(attemptCount + 1), 30);
+            } else {
+                console.warn('標記層未能在預期時間內創建，頁碼:', currentPage);
+            }
+        };
         
-        // 顯示所有標記區塊（編輯模式）
-        // 使用 setTimeout 確保 renderMarks 完成後再設置樣式
-        setTimeout(() => {
-            const markBlocks = document.querySelectorAll('.mark-block');
-            markBlocks.forEach(block => {
-                block.style.display = 'block';
-                block.style.visibility = 'visible';
-                block.style.opacity = '1';
-                // 恢復邊框和背景色
-                block.style.border = '3px solid #007BFF';
-                block.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
-                // 顯示標籤和刪除按鈕
-                const label = block.querySelector('.mark-label');
-                const deleteBtn = block.querySelector('.mark-delete');
-                if (label) {
-                    label.style.display = 'block';
-                }
-                if (deleteBtn) {
-                    deleteBtn.style.display = 'flex';
-                }
-            });
-        }, 100);
+        // 立即嘗試渲染（不延遲）
+        tryRenderMarks();
         
-        // 在 PDF viewer 上綁定事件
-        const pdfViewers = document.querySelectorAll('.pdf-viewer');
-        pdfViewers.forEach(viewer => {
+        // 在 PDF viewer 和標記層上綁定事件（優先執行，確保手動標記功能立即可用）
+        // 立即綁定，不等待
+        let pdfViewersForEvents = document.querySelectorAll('.pdf-viewer');
+        console.log('找到 PDF viewers:', pdfViewersForEvents.length);
+        pdfViewersForEvents.forEach(viewer => {
+            // 先移除舊的事件監聽器（如果有的話），避免重複綁定
+            viewer.removeEventListener('mousedown', handleViewerMouseDown);
+            viewer.removeEventListener('touchstart', handleViewerTouchStart);
+            // 綁定新的事件監聽器
             viewer.addEventListener('mousedown', handleViewerMouseDown);
             viewer.addEventListener('touchstart', handleViewerTouchStart);
+            console.log('已為 PDF viewer 綁定事件');
         });
+        
+        // 也在標記層上綁定事件，確保點擊標記層空白區域也能觸發
+        const markLayersForEvents = document.querySelectorAll('.mark-layer');
+        console.log('找到標記層:', markLayersForEvents.length);
+        markLayersForEvents.forEach(layer => {
+            // 先移除舊的事件監聽器（如果有的話），避免重複綁定
+            layer.removeEventListener('mousedown', handleViewerMouseDown);
+            layer.removeEventListener('touchstart', handleViewerTouchStart);
+            // 綁定新的事件監聽器
+            layer.addEventListener('mousedown', handleViewerMouseDown);
+            layer.addEventListener('touchstart', handleViewerTouchStart);
+            console.log('已為標記層綁定事件');
+        });
+        
+        // 如果當前沒有 PDF viewer，等待頁面渲染完成後再綁定
+        if (pdfViewersForEvents.length === 0) {
+            console.log('當前沒有 PDF viewer，等待頁面渲染...');
+            setTimeout(() => {
+                pdfViewersForEvents = document.querySelectorAll('.pdf-viewer');
+                pdfViewersForEvents.forEach(viewer => {
+                    viewer.removeEventListener('mousedown', handleViewerMouseDown);
+                    viewer.removeEventListener('touchstart', handleViewerTouchStart);
+                    viewer.addEventListener('mousedown', handleViewerMouseDown);
+                    viewer.addEventListener('touchstart', handleViewerTouchStart);
+                    console.log('延遲綁定 PDF viewer 事件');
+                });
+            }, 100);
+        }
     } else {
+        // 重置手動標記狀態
+        isManualMarkingEnabled = false;
+        
         // 隱藏標記功能工具欄
         if (markingToolbar) {
             markingToolbar.classList.remove('show');
+            markingToolbar.style.display = 'none';
         }
         
-        // 恢復PDF容器頂部邊距
+        // 恢復PDF容器底部邊距
         const pdfContainer = document.getElementById('pdfContainer');
         if (pdfContainer) {
-            pdfContainer.style.marginTop = '80px';
+            pdfContainer.style.marginBottom = '0px';
+        }
+        
+        // 恢復底部元素位置
+        const audioPlayer = document.getElementById('audioPlayer');
+        const selectAllTextButton = document.getElementById('select-all-text');
+        const sendButton = document.getElementById('sendButton');
+        const clearButton = document.getElementById('clearButton');
+        const switchVoiceButton = document.getElementById('switchVoiceButton');
+        
+        if (audioPlayer) {
+            audioPlayer.style.bottom = '5px';
+        }
+        if (selectAllTextButton) {
+            selectAllTextButton.style.bottom = '5px';
+        }
+        if (sendButton) {
+            sendButton.style.bottom = '5px';
+        }
+        if (clearButton) {
+            clearButton.style.bottom = '5px';
+        }
+        if (switchVoiceButton) {
+            switchVoiceButton.style.bottom = '5px';
         }
         
         // 更新模態視窗中的按鈕
@@ -2703,17 +4161,33 @@ function toggleMarkingMode() {
         if (clearButton) clearButton.style.display = 'none';
         
         // 更新工具欄中的按鈕
-        if (markButtonToolbar) {
-            markButtonToolbar.textContent = '標記區塊';
-            markButtonToolbar.classList.remove('button-danger');
-            markButtonToolbar.classList.add('button-success');
-        }
+        if (cancelMarkingButtonToolbar) cancelMarkingButtonToolbar.style.display = 'none';
+        const manualMarkButtonToolbar = document.getElementById('manualMarkButtonToolbar');
+        if (manualMarkButtonToolbar) manualMarkButtonToolbar.style.display = 'none';
+        if (aiMarkButtonToolbar) aiMarkButtonToolbar.style.display = 'none';
+        if (setPasswordButtonToolbar) setPasswordButtonToolbar.style.display = 'none';
         if (saveButtonToolbar) saveButtonToolbar.style.display = 'none';
         if (downloadButtonToolbar) downloadButtonToolbar.style.display = 'none';
         if (clearButtonToolbar) clearButtonToolbar.style.display = 'none';
         
         if (toggleButton) toggleButton.style.display = 'none';
+        
+        // 移除標記模式的CSS類
+        document.body.classList.remove('marking-mode-active');
         document.body.style.cursor = 'default';
+        
+        // 恢復 PDF viewer 和 canvas 的游標
+        let pdfViewersForCursorExit = document.querySelectorAll('.pdf-viewer');
+        pdfViewersForCursorExit.forEach(viewer => {
+            viewer.style.removeProperty('cursor');
+            viewer.style.cursor = 'default';
+        });
+        let canvasesForCursorExit = document.querySelectorAll('canvas');
+        canvasesForCursorExit.forEach(canvas => {
+            canvas.style.removeProperty('cursor');
+            canvas.style.cursor = 'default';
+        });
+        
         if (currentMark) {
             currentMark = null;
         }
@@ -2732,32 +4206,63 @@ function toggleMarkingMode() {
             block.style.pointerEvents = 'auto'; // 保留點擊功能
             block.style.backgroundColor = 'transparent'; // 確保背景透明
             block.style.border = 'none'; // 隱藏邊框
-            // 隱藏標籤和刪除按鈕
+            // 隱藏標籤、編輯按鈕和刪除按鈕
             const label = block.querySelector('.mark-label');
+            const editBtn = block.querySelector('.mark-edit');
             const deleteBtn = block.querySelector('.mark-delete');
             if (label) label.style.display = 'none';
+            if (editBtn) editBtn.style.display = 'none';
             if (deleteBtn) deleteBtn.style.display = 'none';
         });
         
-        // 移除 PDF viewer 上的事件監聽器
-        const pdfViewers = document.querySelectorAll('.pdf-viewer');
-        pdfViewers.forEach(viewer => {
+        // 移除 PDF viewer 和標記層上的事件監聽器
+        let pdfViewersForRemoveEvents = document.querySelectorAll('.pdf-viewer');
+        pdfViewersForRemoveEvents.forEach(viewer => {
             viewer.removeEventListener('mousedown', handleViewerMouseDown);
             viewer.removeEventListener('touchstart', handleViewerTouchStart);
+        });
+        
+        // 移除標記層上的事件監聽器
+        const markLayersForRemoveEvents = document.querySelectorAll('.mark-layer');
+        markLayersForRemoveEvents.forEach(layer => {
+            layer.removeEventListener('mousedown', handleViewerMouseDown);
+            layer.removeEventListener('touchstart', handleViewerTouchStart);
         });
     }
 }
 
 // 處理 PDF viewer 的滑鼠按下事件
 function handleViewerMouseDown(e) {
-    if (!isMarkingMode || !pdfDoc) return;
+    console.log('handleViewerMouseDown 被調用, isMarkingMode:', isMarkingMode, 'pdfDoc:', !!pdfDoc);
+    if (!isMarkingMode || !pdfDoc) {
+        console.log('條件不滿足，返回');
+        return;
+    }
     
-    // 如果點擊的是標記區塊，不處理
-    if (e.target.closest('.mark-block')) return;
+    // 如果點擊的是標記區塊、調整大小控制點、編輯按鈕或刪除按鈕，不處理
+    if (e.target.closest('.mark-block') || 
+        e.target.classList.contains('resize-handle') ||
+        e.target.classList.contains('mark-delete') ||
+        e.target.classList.contains('mark-edit')) {
+        console.log('點擊的是標記區塊或控制元素，返回');
+        return;
+    }
     
-    // 如果點擊的是 canvas 或標記層，開始標記
-    if (e.target.tagName === 'CANVAS' || e.target.classList.contains('mark-layer') || e.target.classList.contains('pdf-viewer')) {
+    // 如果點擊的是 canvas、標記層、pdf-viewer、textLayer 或任何在 pdf-viewer 內的元素，開始標記
+    const clickedElement = e.target;
+    const isInPdfViewer = clickedElement.closest('.pdf-viewer');
+    
+    console.log('點擊的元素:', clickedElement.tagName, 'classList:', clickedElement.classList.toString(), 'isInPdfViewer:', !!isInPdfViewer);
+    
+    if (clickedElement.tagName === 'CANVAS' || 
+        clickedElement.classList.contains('mark-layer') || 
+        clickedElement.classList.contains('pdf-viewer') ||
+        clickedElement.classList.contains('textLayer') ||
+        isInPdfViewer) {
+        console.log('條件滿足，調用 startMarking');
         startMarking(e);
+    } else {
+        console.log('條件不滿足，不調用 startMarking');
     }
 }
 
@@ -2765,17 +4270,35 @@ function handleViewerMouseDown(e) {
 function handleViewerTouchStart(e) {
     if (!isMarkingMode || !pdfDoc) return;
     
-    // 如果點擊的是標記區塊，不處理
-    if (e.target.closest('.mark-block')) return;
+    // 如果點擊的是標記區塊、調整大小控制點、編輯按鈕或刪除按鈕，不處理
+    if (e.target.closest('.mark-block') || 
+        e.target.classList.contains('resize-handle') ||
+        e.target.classList.contains('mark-delete') ||
+        e.target.classList.contains('mark-edit')) {
+        return;
+    }
     
-    // 如果點擊的是 canvas 或標記層，開始標記
-    if (e.target.tagName === 'CANVAS' || e.target.classList.contains('mark-layer') || e.target.classList.contains('pdf-viewer')) {
-        startMarking(e);
+    // 如果點擊的是 canvas、標記層、pdf-viewer、textLayer 或任何在 pdf-viewer 內的元素，開始標記
+    const clickedElement = e.target;
+    const isInPdfViewer = clickedElement.closest('.pdf-viewer');
+    
+    if (clickedElement.tagName === 'CANVAS' || 
+        clickedElement.classList.contains('mark-layer') || 
+        clickedElement.classList.contains('pdf-viewer') ||
+        clickedElement.classList.contains('textLayer') ||
+        isInPdfViewer) {
+        // 如果點擊的是標記層的空白區域（標記層本身），也應該開始標記
+        if (clickedElement.classList.contains('mark-layer')) {
+            startMarking(e);
+        } else if (clickedElement.tagName === 'CANVAS' || isInPdfViewer) {
+            startMarking(e);
+        }
     }
 }
 
 // 開始繪製標記
 function startMarking(e) {
+    console.log('startMarking 被調用');
     if (!isMarkingMode || !pdfDoc) {
         console.log('標記模式未啟用或PDF未載入, isMarkingMode:', isMarkingMode, 'pdfDoc:', !!pdfDoc);
         return;
@@ -2785,14 +4308,29 @@ function startMarking(e) {
     if (e.target.classList.contains('mark-block') || 
         e.target.classList.contains('mark-delete') ||
         e.target.closest('.mark-block')) {
+        console.log('點擊的是標記區塊，返回');
         return;
     }
     
     const markLayer = document.querySelector(`.mark-layer[data-page-num="${currentPage}"]`);
     if (!markLayer) {
-        console.warn('標記層不存在，頁碼:', currentPage);
+        console.warn('標記層不存在，頁碼:', currentPage, '嘗試創建標記層...');
+        // 如果標記層不存在，嘗試重新渲染頁面
+        renderPage(currentPage);
+        // 等待標記層創建後再重試
+        setTimeout(() => {
+            const retryMarkLayer = document.querySelector(`.mark-layer[data-page-num="${currentPage}"]`);
+            if (retryMarkLayer) {
+                console.log('標記層已創建，重試 startMarking');
+                startMarking(e);
+            } else {
+                console.error('標記層創建失敗');
+            }
+        }, 100);
         return;
     }
+    
+    console.log('標記層已找到，繼續標記流程');
     
     // 確保標記層處於標記模式
     if (!markLayer.classList.contains('marking-mode')) {
@@ -2902,7 +4440,8 @@ function finishMark(e) {
             y: currentMark.y,
             width: currentMark.width,
             height: currentMark.height,
-            text: '' // 將在點擊時提取
+            text: '', // 將在點擊時提取
+            replacementText: '' // 替換文字，用於錯誤發音修正
         });
         
         // 保存標記ID和頁碼到變量中，避免閉包問題
@@ -2911,13 +4450,48 @@ function finishMark(e) {
         
         // 添加點擊事件（點擊區塊時朗讀）
         currentMark.element.addEventListener('click', (e) => {
-            // 如果點擊的是刪除按鈕，不觸發朗讀
-            if (e.target.classList.contains('mark-delete')) {
+            // 如果點擊的是刪除按鈕、編輯按鈕、調整大小控制點或其子元素，不觸發朗讀
+            if (e.target.classList.contains('mark-delete') || 
+                e.target.closest('.mark-delete') ||
+                e.target.classList.contains('mark-edit') || 
+                e.target.closest('.mark-edit') ||
+                e.target.classList.contains('resize-handle')) {
+                e.stopPropagation();
                 return;
             }
+            // 檢查是否剛剛進行了拖拽或調整大小（避免誤觸發朗讀）
+            const wasDragging = currentMark.element.classList.contains('dragging');
+            if (wasDragging) {
+                // 如果剛剛拖拽過，不觸發朗讀
+                return;
+            }
+            // 無論是否在編輯模式，點擊標記區域都觸發朗讀
             e.stopPropagation();
             readMarkBlock(markId, markPageNum);
+            // 在朗讀後進行幕後保存
+            saveMarksToPdf(false);
         });
+        
+        // 添加編輯按鈕
+        const editBtn = document.createElement('div');
+        editBtn.className = 'mark-edit';
+        editBtn.textContent = '✎';
+        editBtn.title = '編輯替換文字';
+        editBtn.style.pointerEvents = 'auto';
+        editBtn.style.zIndex = '1005';
+        
+        const handleEdit = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            editMarkReplacementText(markId, markPageNum);
+            return false;
+        };
+        
+        editBtn.addEventListener('mousedown', handleEdit);
+        editBtn.addEventListener('touchstart', handleEdit);
+        editBtn.addEventListener('click', handleEdit);
+        currentMark.element.appendChild(editBtn);
         
         // 添加刪除按鈕
         const deleteBtn = document.createElement('div');
@@ -2925,15 +4499,15 @@ function finishMark(e) {
         deleteBtn.textContent = '×';
         deleteBtn.title = '刪除此標記';
         deleteBtn.style.pointerEvents = 'auto';
-        deleteBtn.style.zIndex = '1002';
+        deleteBtn.style.zIndex = '1005';
         
         // 使用多種事件確保能觸發，使用保存的變量而不是 currentMark
-        const handleDelete = (e) => {
+        const handleDelete = async (e) => {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
             console.log('刪除按鈕被點擊，標記ID:', markId);
-            deleteMarkBlock(markId, markPageNum);
+            await deleteMarkBlock(markId, markPageNum);
             return false;
         };
         
@@ -2942,6 +4516,224 @@ function finishMark(e) {
         deleteBtn.addEventListener('click', handleDelete);
         
         currentMark.element.appendChild(deleteBtn);
+        
+        // 在編輯模式下添加調整大小的控制點和拖拽功能（與renderMarks相同）
+        if (isMarkingMode) {
+            // 添加調整大小的控制點（8個方向）
+            const resizeHandles = ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'];
+            resizeHandles.forEach(direction => {
+                const handle = document.createElement('div');
+                handle.className = `resize-handle ${direction}`;
+                handle.dataset.direction = direction;
+                currentMark.element.appendChild(handle);
+            });
+            
+            // 拖拽移動功能（使用閉包保存每個標記的狀態）
+            const markLayer = document.querySelector(`.mark-layer[data-page-num="${currentMark.pageNum}"]`);
+            const markBlock = currentMark.element;
+            const markState = {
+                isDragging: false,
+                isResizing: false,
+                resizeDirection: null,
+                startX: 0,
+                startY: 0,
+                startLeft: 0,
+                startTop: 0,
+                startWidth: 0,
+                startHeight: 0
+            };
+            
+            // 定義事件處理器（在拖拽/調整大小開始時才綁定）
+            let moveHandler = null;
+            let endHandler = null;
+            let escapeHandler = null;
+            
+            // 綁定全局事件的輔助函數
+            const bindGlobalEvents = () => {
+                if (!moveHandler) {
+                    moveHandler = (e) => handleMove(e);
+                    endHandler = (e) => handleEnd(e);
+                    escapeHandler = (e) => {
+                        if (e.key === 'Escape' && (markState.isDragging || markState.isResizing)) {
+                            // 恢復到原始位置
+                            if (markState.isDragging) {
+                                markBlock.style.left = `${markState.startLeft}px`;
+                                markBlock.style.top = `${markState.startTop}px`;
+                            } else if (markState.isResizing) {
+                                markBlock.style.left = `${markState.startLeft}px`;
+                                markBlock.style.top = `${markState.startTop}px`;
+                                markBlock.style.width = `${markState.startWidth}px`;
+                                markBlock.style.height = `${markState.startHeight}px`;
+                            }
+                            handleEnd(e);
+                        }
+                    };
+                    
+                    document.addEventListener('mousemove', moveHandler);
+                    document.addEventListener('touchmove', moveHandler);
+                    document.addEventListener('mouseup', endHandler);
+                    document.addEventListener('touchend', endHandler);
+                    document.addEventListener('keydown', escapeHandler);
+                }
+            };
+            
+            // 處理調整大小
+            const handleResizeStart = (e, direction) => {
+                e.preventDefault();
+                e.stopPropagation();
+                markState.isResizing = true;
+                markState.isDragging = false;
+                markState.resizeDirection = direction;
+                const rect = markBlock.getBoundingClientRect();
+                const markLayerRect = markLayer.getBoundingClientRect();
+                markState.startX = (e.touches ? e.touches[0].clientX : e.clientX);
+                markState.startY = (e.touches ? e.touches[0].clientY : e.clientY);
+                markState.startLeft = rect.left - markLayerRect.left;
+                markState.startTop = rect.top - markLayerRect.top;
+                markState.startWidth = rect.width;
+                markState.startHeight = rect.height;
+                markBlock.classList.add('dragging');
+                
+                // 綁定全局事件
+                bindGlobalEvents();
+            };
+            
+            // 處理拖拽開始
+            const handleDragStart = (e) => {
+                // 如果點擊的是控制點、刪除按鈕或編輯按鈕，不開始拖拽
+                if (e.target.classList.contains('resize-handle') ||
+                    e.target.classList.contains('mark-delete') ||
+                    e.target.classList.contains('mark-edit') ||
+                    e.target.closest('.mark-delete') ||
+                    e.target.closest('.mark-edit')) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                markState.isDragging = true;
+                markState.isResizing = false;
+                const rect = markBlock.getBoundingClientRect();
+                const markLayerRect = markLayer.getBoundingClientRect();
+                markState.startX = (e.touches ? e.touches[0].clientX : e.clientX);
+                markState.startY = (e.touches ? e.touches[0].clientY : e.clientY);
+                markState.startLeft = rect.left - markLayerRect.left;
+                markState.startTop = rect.top - markLayerRect.top;
+                markBlock.classList.add('dragging');
+                
+                // 綁定全局事件
+                bindGlobalEvents();
+            };
+            
+            // 處理移動/調整大小
+            const handleMove = (e) => {
+                if (!markState.isDragging && !markState.isResizing) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const currentX = (e.touches ? e.touches[0].clientX : e.clientX);
+                const currentY = (e.touches ? e.touches[0].clientY : e.clientY);
+                const deltaX = currentX - markState.startX;
+                const deltaY = currentY - markState.startY;
+                
+                if (markState.isResizing && markState.resizeDirection) {
+                    // 調整大小
+                    let newLeft = markState.startLeft;
+                    let newTop = markState.startTop;
+                    let newWidth = markState.startWidth;
+                    let newHeight = markState.startHeight;
+                    
+                    if (markState.resizeDirection.includes('n')) {
+                        newHeight = Math.max(10, markState.startHeight - deltaY);
+                        newTop = markState.startTop + (markState.startHeight - newHeight);
+                    }
+                    if (markState.resizeDirection.includes('s')) {
+                        newHeight = Math.max(10, markState.startHeight + deltaY);
+                    }
+                    if (markState.resizeDirection.includes('w')) {
+                        newWidth = Math.max(10, markState.startWidth - deltaX);
+                        newLeft = markState.startLeft + (markState.startWidth - newWidth);
+                    }
+                    if (markState.resizeDirection.includes('e')) {
+                        newWidth = Math.max(10, markState.startWidth + deltaX);
+                    }
+                    
+                    markBlock.style.left = `${newLeft}px`;
+                    markBlock.style.top = `${newTop}px`;
+                    markBlock.style.width = `${newWidth}px`;
+                    markBlock.style.height = `${newHeight}px`;
+                } else if (markState.isDragging) {
+                    // 移動位置
+                    const markLayerRect = markLayer.getBoundingClientRect();
+                    const newLeft = markState.startLeft + deltaX;
+                    const newTop = markState.startTop + deltaY;
+                    
+                    // 限制在標記層範圍內
+                    const maxLeft = markLayerRect.width - parseFloat(markBlock.style.width);
+                    const maxTop = markLayerRect.height - parseFloat(markBlock.style.height);
+                    
+                    markBlock.style.left = `${Math.max(0, Math.min(newLeft, maxLeft))}px`;
+                    markBlock.style.top = `${Math.max(0, Math.min(newTop, maxTop))}px`;
+                }
+            };
+            
+            // 處理結束
+            const handleEnd = (e) => {
+                // 移除事件監聽器（重要：防止事件監聽器殘留）
+                if (moveHandler) {
+                    document.removeEventListener('mousemove', moveHandler);
+                    document.removeEventListener('touchmove', moveHandler);
+                }
+                if (endHandler) {
+                    document.removeEventListener('mouseup', endHandler);
+                    document.removeEventListener('touchend', endHandler);
+                }
+                if (escapeHandler) {
+                    document.removeEventListener('keydown', escapeHandler);
+                }
+                
+                if (markState.isDragging || markState.isResizing) {
+                    // 更新標記數據
+                    const updatedMark = marks[currentMark.pageNum].find(m => m.id === markId);
+                    if (updatedMark) {
+                        updatedMark.x = parseFloat(markBlock.style.left);
+                        updatedMark.y = parseFloat(markBlock.style.top);
+                        updatedMark.width = parseFloat(markBlock.style.width);
+                        updatedMark.height = parseFloat(markBlock.style.height);
+                        
+                        // 如果調整了大小，重新提取文字
+                        if (markState.isResizing) {
+                            updatedMark.text = extractTextFromMark(updatedMark, currentMark.pageNum);
+                            console.log('標記大小已調整，重新提取文字:', updatedMark.text);
+                        }
+                        
+                        // 靜默保存（不顯示彈窗）
+                        saveMarksToPdf(false);
+                    }
+                }
+                markState.isDragging = false;
+                markState.isResizing = false;
+                markState.resizeDirection = null;
+                markBlock.classList.remove('dragging');
+                
+                // 清理事件處理器引用
+                moveHandler = null;
+                endHandler = null;
+                escapeHandler = null;
+            };
+            
+            // 綁定事件（只在標記區塊上綁定，全局事件在拖拽開始時才綁定）
+            markBlock.addEventListener('mousedown', handleDragStart);
+            markBlock.addEventListener('touchstart', handleDragStart);
+            
+            // 為每個調整大小控制點綁定事件
+            resizeHandles.forEach(direction => {
+                const handle = markBlock.querySelector(`.resize-handle.${direction}`);
+                if (handle) {
+                    handle.addEventListener('mousedown', (e) => handleResizeStart(e, direction));
+                    handle.addEventListener('touchstart', (e) => handleResizeStart(e, direction));
+                }
+            });
+        }
         
     } else {
         // 標記太小，移除
@@ -3045,21 +4837,27 @@ async function readMarkBlock(markId, pageNum) {
     
     // 只要有 PDF 文字層，就只朗讀純文字，不送圖片給 AI（與框選朗讀一致）
     if (cleanedText.length > 0) {
-        text = cleanedText;
+        // 如果有替換文字，使用替換文字；否則使用原始文字
+        text = mark.replacementText && mark.replacementText.trim() ? mark.replacementText.trim() : cleanedText;
     } else if (hasImageContent && base64Image) {
-        // 沒有 PDF 文字層，才送圖片給 AI（與框選朗讀一致，參考 readTextInsideFrame 的邏輯）
-        // 如果正在進行圖片辨識，直接返回，防止重複執行
-        if (typeof isImageRecognizing !== 'undefined' && isImageRecognizing) {
-            console.log('圖片辨識正在進行中，忽略重複請求');
-            return;
-        }
-        
-        // 設置標記，防止重複執行
-        if (typeof isImageRecognizing !== 'undefined') {
-            isImageRecognizing = true;
-        }
-        
-        try {
+        // 如果有替換文字，直接使用替換文字，不需要進行圖片辨識
+        if (mark.replacementText && mark.replacementText.trim()) {
+            text = mark.replacementText.trim();
+            // 使用替換文字，跳過圖片辨識，直接進入後續朗讀流程
+        } else {
+            // 沒有替換文字，才送圖片給 AI（與框選朗讀一致，參考 readTextInsideFrame 的邏輯）
+            // 如果正在進行圖片辨識，直接返回，防止重複執行
+            if (typeof isImageRecognizing !== 'undefined' && isImageRecognizing) {
+                console.log('圖片辨識正在進行中，忽略重複請求');
+                return;
+            }
+            
+            // 設置標記，防止重複執行
+            if (typeof isImageRecognizing !== 'undefined') {
+                isImageRecognizing = true;
+            }
+            
+            try {
             Swal.fire({
                 title: '正在辨識圖片',
                 text: '正在使用 AI 辨識圖片內容...（Gemini）',
@@ -3140,6 +4938,7 @@ async function readMarkBlock(markId, pageNum) {
                 isPlayingWaitingMessage = false;
             }
             return;
+            }
         }
     } else if (hasImageContent && !base64Image) {
         // 有圖片內容但 base64Image 為 null，可能是裁剪失敗
@@ -3239,6 +5038,9 @@ async function readMarkBlock(markId, pageNum) {
                 resolve();
             }
         });
+        
+        // 在幕後保存標記（不顯示彈窗）
+        saveMarksToPdf(false);
     } else {
         Swal.fire({
             icon: 'warning',
@@ -3248,8 +5050,150 @@ async function readMarkBlock(markId, pageNum) {
     }
 }
 
+// 提取標記區域內的文字（輔助函數，用於重新提取文字）
+function extractTextFromMark(mark, pageNum) {
+    const markLayer = document.querySelector(`.mark-layer[data-page-num="${pageNum}"]`);
+    if (!markLayer) return '';
+    
+    const pdfViewer = markLayer.parentElement;
+    const textLayer = pdfViewer?.querySelector('.textLayer');
+    if (!textLayer) return '';
+    
+    const textLayerRect = textLayer.getBoundingClientRect();
+    const markLayerRect = markLayer.getBoundingClientRect();
+    const spans = textLayer.getElementsByTagName('my-fra');
+    
+    // 計算標記在文字層中的實際位置
+    const markInTextLayer = {
+        left: mark.x + (markLayerRect.left - textLayerRect.left),
+        top: mark.y + (markLayerRect.top - textLayerRect.top),
+        right: mark.x + mark.width + (markLayerRect.left - textLayerRect.left),
+        bottom: mark.y + mark.height + (markLayerRect.top - textLayerRect.top)
+    };
+    
+    let text = '';
+    let lastSpanY = null;
+    let lastSpanBottom = null;
+    
+    // 遍歷所有 span，提取在標記區域內的文字
+    for (let span of spans) {
+        const spanRect = span.getBoundingClientRect();
+        
+        // 計算 span 在文字層中的位置
+        const spanX = spanRect.left - textLayerRect.left;
+        const spanY = spanRect.top - textLayerRect.top;
+        const spanRight = spanRect.right - textLayerRect.left;
+        const spanBottom = spanRect.bottom - textLayerRect.top;
+        
+        // 檢查 span 是否與標記區域重疊
+        const isOverlapping = !(spanRight < markInTextLayer.left || 
+                                spanX > markInTextLayer.right ||
+                                spanBottom < markInTextLayer.top ||
+                                spanY > markInTextLayer.bottom);
+        
+        if (isOverlapping) {
+            // 檢測是否需要換行（Y座標有明顯變化，表示換行）
+            if (lastSpanY !== null && lastSpanBottom !== null) {
+                const yGap = spanY - lastSpanBottom;
+                // 如果Y座標差距超過字體大小的50%，認為是換行
+                const fontSize = spanRect.height || 16;
+                if (yGap > fontSize * 0.5) {
+                    text += '\n';
+                }
+            }
+            text += span.textContent;
+            lastSpanY = spanY;
+            lastSpanBottom = spanBottom;
+        }
+    }
+    
+    // 清理文字：徹底去除前導空格，保留換行，清理多餘的空白
+    // 先去除開頭的所有空格、Tab（包括全形空格）
+    text = text.replace(/^[\s\t\u3000]+/, '');
+    // 將多個連續空格和 Tab 替換為單個空格
+    text = text.replace(/[ \t\u3000]+/g, ' ');
+    // 清理換行符前後的空格和 Tab，但保留換行符
+    text = text.replace(/[ \t\u3000]*\n[ \t\u3000]*/g, '\n');
+    // 去除每行開頭的空格和 Tab
+    text = text.replace(/\n[ \t\u3000]+/g, '\n');
+    // 最後去除前後空白（包括全形空格）
+    text = text.trim();
+    // 再次確保開頭沒有空格
+    text = text.replace(/^[\s\t\u3000]+/, '');
+    return text;
+}
+
+// 編輯標記的替換文字
+async function editMarkReplacementText(markId, pageNum) {
+    // 不需要再次驗證密碼，因為進入標記模式時已經驗證過了
+    const mark = marks[pageNum]?.find(m => m.id === markId);
+    if (!mark) return;
+    
+    // 總是重新提取原始文字，使用 extractTextFromMark 函數
+    mark.text = extractTextFromMark(mark, pageNum);
+    
+    // 確保顯示時去除前導空格（雙重檢查）
+    let displayText = mark.text || '(無文字)';
+    if (displayText !== '(無文字)') {
+        // 去除前導空格、Tab 和全形空格
+        displayText = displayText.replace(/^[\s\t\u3000]+/, '');
+    }
+    
+    const result = await Swal.fire({
+        title: '編輯替換文字',
+        html: `
+            <div style="text-align: left; margin-bottom: 20px; width: 100%; box-sizing: border-box;">
+                <label style="display: block; margin-bottom: 10px; font-weight: bold; font-size: 18px; color: #333; width: 95%; box-sizing: border-box; margin-left: 0; margin-right: auto;">原始文字：</label>
+                <div style="width: 95%; margin-left: 0; margin-right: auto; padding: 12px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; min-height: 50px; max-height: 300px; overflow-y: auto; word-wrap: break-word; word-break: break-all; font-size: 15px; line-height: 1.8; color: #555; box-sizing: border-box; white-space: pre-wrap; font-family: inherit;">
+                    ${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                </div>
+            </div>
+            <div style="text-align: left; width: 100%; box-sizing: border-box;">
+                <label for="replacementTextInput" style="display: block; margin-bottom: 10px; font-weight: bold; font-size: 18px; color: #333; width: 95%; box-sizing: border-box; margin-left: 0; margin-right: auto;">替換文字（留空則使用原始文字）：</label>
+                <textarea id="replacementTextInput" class="swal2-textarea" placeholder="輸入替換文字" style="width: 95%; margin-left: 0; margin-right: auto; min-height: 80px; max-height: 200px; resize: vertical; box-sizing: border-box; font-size: 15px; padding: 12px; border: 1px solid #ccc; border-radius: 6px; word-wrap: break-word; word-break: break-word; white-space: pre-wrap; overflow-wrap: break-word; overflow-x: hidden; overflow-y: auto; line-height: 1.6; font-family: inherit;">${(mark.replacementText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
+            </div>
+        `,
+        width: '90%',
+        maxWidth: '600px',
+        showCancelButton: true,
+        confirmButtonText: '儲存',
+        cancelButtonText: '取消',
+        customClass: {
+            popup: 'swal-high-z-index'
+        },
+        didOpen: () => {
+            const input = document.getElementById('replacementTextInput');
+            if (input) {
+                input.focus();
+                input.select();
+            }
+        },
+        preConfirm: () => {
+            const input = document.getElementById('replacementTextInput');
+            return input ? input.value.trim() : '';
+        }
+    });
+    
+    if (result.isConfirmed) {
+        mark.replacementText = result.value;
+        // 保存到PDF
+        await saveMarksToPdf();
+        Swal.fire({
+            icon: 'success',
+            title: '已儲存',
+            text: '替換文字已儲存',
+            timer: 1500,
+            showConfirmButton: false,
+            customClass: {
+                popup: 'swal-high-z-index'
+            }
+        });
+    }
+}
+
 // 刪除單個標記區塊
-function deleteMarkBlock(markId, pageNum) {
+async function deleteMarkBlock(markId, pageNum) {
+    // 不需要再次驗證密碼，因為進入標記模式時已經驗證過了
     console.log('deleteMarkBlock 被調用，markId:', markId, 'pageNum:', pageNum);
     
     if (!marks[pageNum]) {
@@ -3352,6 +5296,32 @@ async function loadMarksFromPdf() {
         const { PDFDocument } = PDFLib;
         const pdfDocLib = await PDFDocument.load(originalPdfBytes);
         
+        // 從PDF的Keywords欄位讀取密碼哈希
+        // PDF-lib 的 keywords 是陣列格式
+        let keywordsArray = pdfDocLib.getKeywords() || [];
+        // 確保是陣列格式
+        if (typeof keywordsArray === 'string') {
+            keywordsArray = keywordsArray ? [keywordsArray] : [];
+        } else if (!Array.isArray(keywordsArray)) {
+            keywordsArray = [];
+        }
+        
+        // 在陣列中查找密碼標記
+        const passwordKeyword = keywordsArray.find(k => k.includes('PDF_MARKS_PASSWORD:'));
+        if (passwordKeyword) {
+            const passwordMatch = passwordKeyword.match(/PDF_MARKS_PASSWORD:([a-f0-9]{64})/);
+            if (passwordMatch) {
+                pdfPasswordHash = passwordMatch[1];
+                console.log('PDF標記已受密碼保護');
+            } else {
+                pdfPasswordHash = null;
+                currentSessionPassword = null;
+            }
+        } else {
+            pdfPasswordHash = null;
+            currentSessionPassword = null;
+        }
+        
         // 從PDF的Subject欄位讀取標記數據
         const subject = pdfDocLib.getSubject() || '';
         
@@ -3363,6 +5333,17 @@ async function loadMarksFromPdf() {
             try {
                 const marksJson = decodeURIComponent(escape(atob(encodedMarks)));
                 marks = JSON.parse(marksJson);
+                
+                // 確保每個標記都有 replacementText 字段（向後兼容）
+                Object.keys(marks).forEach(pageNum => {
+                    if (Array.isArray(marks[pageNum])) {
+                        marks[pageNum].forEach(mark => {
+                            if (!mark.hasOwnProperty('replacementText')) {
+                                mark.replacementText = '';
+                            }
+                        });
+                    }
+                });
                 
                 console.log('從PDF文件載入標記數據成功，標記數量:', Object.keys(marks).length);
                 
@@ -3443,51 +5424,298 @@ function renderMarks() {
         label.textContent = `區塊 ${mark.id + 1}`;
         markBlock.appendChild(label);
         
+        // 添加編輯按鈕
+        const editBtn = document.createElement('div');
+        editBtn.className = 'mark-edit';
+        editBtn.textContent = '✎';
+        editBtn.title = '編輯替換文字';
+        editBtn.style.pointerEvents = 'auto';
+        editBtn.style.zIndex = '1005';
+        
+        const handleEdit = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            editMarkReplacementText(mark.id, currentPage);
+            return false;
+        };
+        
+        editBtn.addEventListener('mousedown', handleEdit);
+        editBtn.addEventListener('touchstart', handleEdit);
+        editBtn.addEventListener('click', handleEdit);
+        markBlock.appendChild(editBtn);
+        
         // 添加刪除按鈕
         const deleteBtn = document.createElement('div');
         deleteBtn.className = 'mark-delete';
         deleteBtn.textContent = '×';
         deleteBtn.title = '刪除此標記';
         deleteBtn.style.pointerEvents = 'auto';
-        deleteBtn.style.zIndex = '1002';
+        deleteBtn.style.zIndex = '1005';
         
         // 使用 mousedown 事件確保能觸發
-        deleteBtn.addEventListener('mousedown', (e) => {
+        deleteBtn.addEventListener('mousedown', async (e) => {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
             console.log('刪除按鈕被點擊，標記ID:', mark.id);
-            deleteMarkBlock(mark.id, currentPage);
+            await deleteMarkBlock(mark.id, currentPage);
             return false;
         });
         
-        deleteBtn.addEventListener('touchstart', (e) => {
+        deleteBtn.addEventListener('touchstart', async (e) => {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
             console.log('刪除按鈕被觸摸，標記ID:', mark.id);
-            deleteMarkBlock(mark.id, currentPage);
+            await deleteMarkBlock(mark.id, currentPage);
             return false;
         });
         
-        deleteBtn.addEventListener('click', (e) => {
+        deleteBtn.addEventListener('click', async (e) => {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
             console.log('刪除按鈕被點擊（click事件），標記ID:', mark.id);
-            deleteMarkBlock(mark.id, currentPage);
+            await deleteMarkBlock(mark.id, currentPage);
             return false;
         });
         
         markBlock.appendChild(deleteBtn);
         
-        // 點擊區塊時朗讀（排除刪除按鈕）
+        // 在編輯模式下添加調整大小的控制點和拖拽功能
+        if (isMarkingMode) {
+            // 添加調整大小的控制點（8個方向）
+            const resizeHandles = ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se'];
+            resizeHandles.forEach(direction => {
+                const handle = document.createElement('div');
+                handle.className = `resize-handle ${direction}`;
+                handle.dataset.direction = direction;
+                markBlock.appendChild(handle);
+            });
+            
+            // 拖拽移動功能（使用閉包保存每個標記的狀態）
+            const markState = {
+                isDragging: false,
+                isResizing: false,
+                resizeDirection: null,
+                startX: 0,
+                startY: 0,
+                startLeft: 0,
+                startTop: 0,
+                startWidth: 0,
+                startHeight: 0
+            };
+            
+            // 定義事件處理器（在拖拽/調整大小開始時才綁定）
+            let moveHandler2 = null;
+            let endHandler2 = null;
+            let escapeHandler2 = null;
+            
+            // 綁定全局事件的輔助函數
+            const bindGlobalEvents2 = () => {
+                if (!moveHandler2) {
+                    moveHandler2 = (e) => handleMove(e);
+                    endHandler2 = (e) => handleEnd(e);
+                    escapeHandler2 = (e) => {
+                        if (e.key === 'Escape' && (markState.isDragging || markState.isResizing)) {
+                            // 恢復到原始位置
+                            if (markState.isDragging) {
+                                markBlock.style.left = `${markState.startLeft}px`;
+                                markBlock.style.top = `${markState.startTop}px`;
+                            } else if (markState.isResizing) {
+                                markBlock.style.left = `${markState.startLeft}px`;
+                                markBlock.style.top = `${markState.startTop}px`;
+                                markBlock.style.width = `${markState.startWidth}px`;
+                                markBlock.style.height = `${markState.startHeight}px`;
+                            }
+                            handleEnd(e);
+                        }
+                    };
+                    
+                    document.addEventListener('mousemove', moveHandler2);
+                    document.addEventListener('touchmove', moveHandler2);
+                    document.addEventListener('mouseup', endHandler2);
+                    document.addEventListener('touchend', endHandler2);
+                    document.addEventListener('keydown', escapeHandler2);
+                }
+            };
+            
+            // 處理調整大小
+            const handleResizeStart = (e, direction) => {
+                e.preventDefault();
+                e.stopPropagation();
+                markState.isResizing = true;
+                markState.isDragging = false;
+                markState.resizeDirection = direction;
+                const rect = markBlock.getBoundingClientRect();
+                const markLayerRect = markLayer.getBoundingClientRect();
+                markState.startX = (e.touches ? e.touches[0].clientX : e.clientX);
+                markState.startY = (e.touches ? e.touches[0].clientY : e.clientY);
+                markState.startLeft = rect.left - markLayerRect.left;
+                markState.startTop = rect.top - markLayerRect.top;
+                markState.startWidth = rect.width;
+                markState.startHeight = rect.height;
+                markBlock.classList.add('dragging');
+                
+                // 綁定全局事件
+                bindGlobalEvents2();
+            };
+            
+            // 處理拖拽開始
+            const handleDragStart = (e) => {
+                // 如果點擊的是控制點、刪除按鈕或編輯按鈕，不開始拖拽
+                if (e.target.classList.contains('resize-handle') ||
+                    e.target.classList.contains('mark-delete') ||
+                    e.target.classList.contains('mark-edit') ||
+                    e.target.closest('.mark-delete') ||
+                    e.target.closest('.mark-edit')) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                markState.isDragging = true;
+                markState.isResizing = false;
+                const rect = markBlock.getBoundingClientRect();
+                const markLayerRect = markLayer.getBoundingClientRect();
+                markState.startX = (e.touches ? e.touches[0].clientX : e.clientX);
+                markState.startY = (e.touches ? e.touches[0].clientY : e.clientY);
+                markState.startLeft = rect.left - markLayerRect.left;
+                markState.startTop = rect.top - markLayerRect.top;
+                markBlock.classList.add('dragging');
+                
+                // 綁定全局事件
+                bindGlobalEvents2();
+            };
+            
+            // 處理移動/調整大小
+            const handleMove = (e) => {
+                if (!markState.isDragging && !markState.isResizing) return;
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const currentX = (e.touches ? e.touches[0].clientX : e.clientX);
+                const currentY = (e.touches ? e.touches[0].clientY : e.clientY);
+                const deltaX = currentX - markState.startX;
+                const deltaY = currentY - markState.startY;
+                
+                if (markState.isResizing && markState.resizeDirection) {
+                    // 調整大小
+                    let newLeft = markState.startLeft;
+                    let newTop = markState.startTop;
+                    let newWidth = markState.startWidth;
+                    let newHeight = markState.startHeight;
+                    
+                    if (markState.resizeDirection.includes('n')) {
+                        newHeight = Math.max(10, markState.startHeight - deltaY);
+                        newTop = markState.startTop + (markState.startHeight - newHeight);
+                    }
+                    if (markState.resizeDirection.includes('s')) {
+                        newHeight = Math.max(10, markState.startHeight + deltaY);
+                    }
+                    if (markState.resizeDirection.includes('w')) {
+                        newWidth = Math.max(10, markState.startWidth - deltaX);
+                        newLeft = markState.startLeft + (markState.startWidth - newWidth);
+                    }
+                    if (markState.resizeDirection.includes('e')) {
+                        newWidth = Math.max(10, markState.startWidth + deltaX);
+                    }
+                    
+                    markBlock.style.left = `${newLeft}px`;
+                    markBlock.style.top = `${newTop}px`;
+                    markBlock.style.width = `${newWidth}px`;
+                    markBlock.style.height = `${newHeight}px`;
+                } else if (markState.isDragging) {
+                    // 移動位置
+                    const markLayerRect = markLayer.getBoundingClientRect();
+                    const newLeft = markState.startLeft + deltaX;
+                    const newTop = markState.startTop + deltaY;
+                    
+                    // 限制在標記層範圍內
+                    const maxLeft = markLayerRect.width - parseFloat(markBlock.style.width);
+                    const maxTop = markLayerRect.height - parseFloat(markBlock.style.height);
+                    
+                    markBlock.style.left = `${Math.max(0, Math.min(newLeft, maxLeft))}px`;
+                    markBlock.style.top = `${Math.max(0, Math.min(newTop, maxTop))}px`;
+                }
+            };
+            
+            
+            // 處理結束
+            const handleEnd = (e) => {
+                // 移除事件監聽器（重要：防止事件監聽器殘留）
+                if (moveHandler2) {
+                    document.removeEventListener('mousemove', moveHandler2);
+                    document.removeEventListener('touchmove', moveHandler2);
+                }
+                if (endHandler2) {
+                    document.removeEventListener('mouseup', endHandler2);
+                    document.removeEventListener('touchend', endHandler2);
+                }
+                if (escapeHandler2) {
+                    document.removeEventListener('keydown', escapeHandler2);
+                }
+                
+                if (markState.isDragging || markState.isResizing) {
+                    // 更新標記數據
+                    const updatedMark = marks[currentPage].find(m => m.id === mark.id);
+                    if (updatedMark) {
+                        updatedMark.x = parseFloat(markBlock.style.left);
+                        updatedMark.y = parseFloat(markBlock.style.top);
+                        updatedMark.width = parseFloat(markBlock.style.width);
+                        updatedMark.height = parseFloat(markBlock.style.height);
+                        
+                        // 如果調整了大小，重新提取文字
+                        if (markState.isResizing) {
+                            updatedMark.text = extractTextFromMark(updatedMark, currentPage);
+                            console.log('標記大小已調整，重新提取文字:', updatedMark.text);
+                        }
+                        
+                        // 靜默保存（不顯示彈窗）
+                        saveMarksToPdf(false);
+                    }
+                }
+                markState.isDragging = false;
+                markState.isResizing = false;
+                markState.resizeDirection = null;
+                markBlock.classList.remove('dragging');
+                
+                // 清理事件處理器引用
+                moveHandler2 = null;
+                endHandler2 = null;
+                escapeHandler2 = null;
+            };
+            
+            // 綁定事件（只在標記區塊上綁定，全局事件在拖拽/調整大小開始時才綁定）
+            markBlock.addEventListener('mousedown', handleDragStart);
+            markBlock.addEventListener('touchstart', handleDragStart);
+            
+            // 為每個調整大小控制點綁定事件
+            resizeHandles.forEach(direction => {
+                const handle = markBlock.querySelector(`.resize-handle.${direction}`);
+                if (handle) {
+                    handle.addEventListener('mousedown', (e) => handleResizeStart(e, direction));
+                    handle.addEventListener('touchstart', (e) => handleResizeStart(e, direction));
+                }
+            });
+        }
+        
+        // 點擊區塊時朗讀（排除刪除按鈕和編輯按鈕）
         // 無論標記是否可見，都要保留點擊朗讀功能
         markBlock.addEventListener('click', (e) => {
-            // 如果點擊的是刪除按鈕或其子元素，不觸發朗讀
+            // 如果點擊的是刪除按鈕、編輯按鈕、調整大小控制點或其子元素，不觸發朗讀
             if (e.target.classList.contains('mark-delete') || 
-                e.target.closest('.mark-delete')) {
+                e.target.closest('.mark-delete') ||
+                e.target.classList.contains('mark-edit') || 
+                e.target.closest('.mark-edit') ||
+                e.target.classList.contains('resize-handle')) {
                 e.stopPropagation();
+                return;
+            }
+            // 檢查是否剛剛進行了拖拽或調整大小（避免誤觸發朗讀）
+            const wasDragging = markBlock.classList.contains('dragging');
+            if (wasDragging) {
+                // 如果剛剛拖拽過，不觸發朗讀
                 return;
             }
             // 無論是否在編輯模式，點擊標記區域都觸發朗讀
@@ -3516,18 +5744,26 @@ function renderMarks() {
             // 恢復邊框和背景色
             block.style.border = '3px solid #007BFF';
             block.style.backgroundColor = 'rgba(0, 123, 255, 0.1)';
-            // 顯示標籤和刪除按鈕
+            // 顯示標籤、編輯按鈕和刪除按鈕
             const label = block.querySelector('.mark-label');
+            const editBtn = block.querySelector('.mark-edit');
             const deleteBtn = block.querySelector('.mark-delete');
             if (label) {
                 label.style.display = 'block';
             }
+            if (editBtn) {
+                editBtn.style.display = 'flex';
+            }
             if (deleteBtn) {
                 deleteBtn.style.display = 'flex';
             }
+            // 顯示調整大小控制點
+            const resizeHandles = block.querySelectorAll('.resize-handle');
+            resizeHandles.forEach(handle => {
+                handle.style.display = 'block';
+            });
         });
         markLayer.classList.remove('hidden');
-        markLayer.style.pointerEvents = 'none'; // 標記層不接收事件，但標記區塊可以
     } else {
         // 非編輯模式：隱藏標記視覺，但保留點擊功能
         const markBlocks = markLayer.querySelectorAll('.mark-block');
@@ -3541,44 +5777,56 @@ function renderMarks() {
             // 隱藏標籤和刪除按鈕
             const label = block.querySelector('.mark-label');
             const deleteBtn = block.querySelector('.mark-delete');
+            const editBtn = block.querySelector('.mark-edit');
             if (label) label.style.display = 'none';
             if (deleteBtn) deleteBtn.style.display = 'none';
+            if (editBtn) editBtn.style.display = 'none';
+            // 隱藏調整大小控制點
+            const resizeHandles = block.querySelectorAll('.resize-handle');
+            resizeHandles.forEach(handle => {
+                handle.style.display = 'none';
+            });
         });
         markLayer.classList.remove('hidden'); // 標記層需要存在以便點擊
-        markLayer.style.pointerEvents = 'none'; // 標記層不接收事件，但標記區塊可以
     }
 }
 
 // 保存標記到PDF（將標記數據保存到PDF元數據中）
-async function saveMarksToPdf() {
+async function saveMarksToPdf(showNotification = true) {
     if (!pdfDoc || !originalPdfBytes) {
-        Swal.fire({
-            icon: 'warning',
-            title: '無法保存',
-            text: '請先載入PDF檔案'
-        });
+        if (showNotification) {
+            Swal.fire({
+                icon: 'warning',
+                title: '無法保存',
+                text: '請先載入PDF檔案'
+            });
+        }
         return;
     }
     
     // 檢查 PDFLib 是否已載入
     if (typeof PDFLib === 'undefined') {
-        Swal.fire({
-            icon: 'error',
-            title: '庫未載入',
-            text: 'PDF-lib 庫尚未載入，請刷新頁面後重試'
-        });
+        if (showNotification) {
+            Swal.fire({
+                icon: 'error',
+                title: '庫未載入',
+                text: 'PDF-lib 庫尚未載入，請刷新頁面後重試'
+            });
+        }
         return;
     }
     
     try {
-        Swal.fire({
-            title: '正在保存',
-            text: '正在將標記保存到PDF...',
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
+        if (showNotification) {
+            Swal.fire({
+                title: '正在保存',
+                text: '正在將標記保存到PDF...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+        }
         
         const { PDFDocument } = PDFLib;
         const pdfDocLib = await PDFDocument.load(originalPdfBytes);
@@ -3601,6 +5849,29 @@ async function saveMarksToPdf() {
         const encodedMarks = btoa(unescape(encodeURIComponent(marksJson)));
         pdfDocLib.setSubject(`PDF_MARKS_DATA:${encodedMarks}`);
         
+        // 使用已設定的密碼（如果有的話），保持現有的密碼設定
+        // PDF-lib 的 keywords 必須是陣列
+        let keywordsArray = pdfDocLib.getKeywords() || [];
+        // 確保是陣列格式
+        if (typeof keywordsArray === 'string') {
+            keywordsArray = keywordsArray ? [keywordsArray] : [];
+        } else if (!Array.isArray(keywordsArray)) {
+            keywordsArray = [];
+        }
+        
+        // 保持現有的密碼設定（如果已設定）
+        if (pdfPasswordHash) {
+            // 移除舊的密碼標記（如果存在）
+            keywordsArray = keywordsArray.filter(k => !k.includes('PDF_MARKS_PASSWORD:'));
+            // 添加當前的密碼標記
+            keywordsArray.push(`PDF_MARKS_PASSWORD:${pdfPasswordHash}`);
+            pdfDocLib.setKeywords(keywordsArray);
+        } else {
+            // 如果沒有密碼保護，清除密碼標記（如果存在）
+            keywordsArray = keywordsArray.filter(k => !k.includes('PDF_MARKS_PASSWORD:'));
+            pdfDocLib.setKeywords(keywordsArray);
+        }
+        
         // 也可以使用自定義屬性（如果PDF-lib支持）
         // 保存更新後的PDF字節
         const pdfBytes = await pdfDocLib.save();
@@ -3614,22 +5885,26 @@ async function saveMarksToPdf() {
         const file = new File([blob], fileName, { type: 'application/pdf' });
         await saveFileToIndexedDB(file);
         
-        Swal.fire({
-            icon: 'success',
-            title: '保存成功',
-            text: '標記已保存到PDF文件中，可繼續編輯',
-            timer: 1500,
-            showConfirmButton: false
-        });
+        if (showNotification) {
+            Swal.fire({
+                icon: 'success',
+                title: '保存成功',
+                text: '標記已保存到PDF文件中，可繼續編輯',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
         
         // 保存後不隱藏標記，保持可見以便繼續編輯
     } catch (error) {
         console.error('保存標記到PDF失敗:', error);
-        Swal.fire({
-            icon: 'error',
-            title: '保存失敗',
-            text: '無法保存標記到PDF: ' + error.message
-        });
+        if (showNotification) {
+            Swal.fire({
+                icon: 'error',
+                title: '保存失敗',
+                text: '無法保存標記到PDF: ' + error.message
+            });
+        }
     }
 }
 
@@ -3695,7 +5970,8 @@ async function downloadMarkedPdf() {
 }
 
 // 清除所有標記
-function clearAllMarks() {
+async function clearAllMarks() {
+    // 不需要再次驗證密碼，因為進入標記模式時已經驗證過了
     Swal.fire({
         icon: 'warning',
         title: '確認清除',
@@ -3703,7 +5979,7 @@ function clearAllMarks() {
         showCancelButton: true,
         confirmButtonText: '確定',
         cancelButtonText: '取消'
-    }).then((result) => {
+    }).then(async (result) => {
         if (result.isConfirmed) {
             marks = {};
             markIdCounter = 0;
