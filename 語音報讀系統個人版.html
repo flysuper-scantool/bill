@@ -511,13 +511,15 @@ input[type=range]::-moz-range-thumb {
     <!-- 聲音選擇 -->  
     <select id="voiceSelect">
 	選擇聲音：
-      <option value="zh-TW-HsiaoChenNeural">中文：曉臻 (女性)</option>
-      <option value="zh-TW-YunJheNeural">中文：允哲 (男性)</option>
-      <option value="zh-TW-HsiaoYuNeural">中文：曉雨 (女性)</option>
-      <option value="en-US-JennyNeural">英文：Jenny (女性)</option>
-      <option value="en-US-GuyNeural">英文：Guy (男性)</option>
-      <option value="en-US-AriaNeural">英文：Aria (女性)</option>
-      <option value="en-US-ChristopherNeural">英文：Christ (男性)</option> 
+      <option value="zh-TW-HsiaoChenNeural">雲端：中文 曉臻 (女性)</option>
+      <option value="zh-TW-YunJheNeural">雲端：中文 允哲 (男性)</option>
+      <option value="zh-TW-HsiaoYuNeural">雲端：中文 曉雨 (女性)</option>
+      <option value="en-US-JennyNeural">雲端：英文 Jenny (女性)</option>
+      <option value="en-US-GuyNeural">雲端：英文 Guy (男性)</option>
+      <option value="en-US-AriaNeural">雲端：英文 Aria (女性)</option>
+      <option value="en-US-ChristopherNeural">雲端：英文 Christ (男性)</option> 
+      <option value="local-zh-female">本機：中文女音 (瀏覽器)</option>
+      <option value="local-en-female">本機：英文女音 (瀏覽器)</option>
     </select>
 </div>
 		  <!-- 語速調整 -->
@@ -557,44 +559,58 @@ input[type=range]::-moz-range-thumb {
   <button id="clearButton" class="button button-light" style="writing-mode: vertical-rl; text-orientation: upright;position: fixed; bottom: 5px;left: 0%; z-index: 2000;color:black;font-size:20px;font-weight:bold;color: rgb(134, 101, 224);font-size: 20px;text-shadow: rgb(204, 204, 204) 0px 1px 0px, rgb(201, 201, 201) 0px 2px 0px;display:none;">清除選取文字</button>
     <label style="writing-mode: vertical-rl; text-orientation: upright;position: fixed; top: 300px;left: 2px; z-index: 1000;color:black;font-size:16px;font-weight:bold;color: rgb(134, 101, 224);font-size: 20px;text-shadow: rgb(204, 204, 204) 0px 1px 0px, rgb(201, 201, 201) 0px 2px 0px;">
         <input type="checkbox" id="touchSelectCheckbox" style="writing-mode: vertical-rl; text-orientation: upright; width: 30px; height: 30px; position: fixed;left: 1px;top: 260px;">觸控選取</label>
-    <!-- 新增：手動清除快取按鈕 -->
-    <button id="clearCacheButton" class="button button-danger" style="writing-mode: vertical-rl; text-orientation: upright;position: fixed; left: 0px; top: 450px; z-index: 1100; font-size: 16px;">清除快取</button>
-    
-    <!-- API KEY 設定按鈕 -->
-    <button id="apiKeySettingsButton" class="button button-secondary" style="position: fixed; top: 70px; left: 0px; z-index: 1; width: 40px; height: 40px; border-radius: 50%; padding: 0; font-size: 20px; display: flex; align-items: center; justify-content: center;" title="設定 Gemini API KEY">🔑</button>
+    <!-- 報讀系統進階設定按鈕 -->
+    <button
+        id="apiKeySettingsButton"
+        class="button button-secondary"
+        style="position: fixed; top: 70px; left: 0px; z-index: 1; width: 40px; height: 40px; border-radius: 50%; padding: 0; font-size: 20px; display: flex; align-items: center; justify-content: center;"
+        title="報讀系統進階設定"
+        aria-label="報讀系統進階設定"
+    >⚙️</button>
 
     <!-- API KEY 設定模態視窗（包含標記功能） -->
     <div id="apiKeyModal" class="modal" style="display: none; z-index: 10020;">
         <div style="padding: 20px;">
-            <h2 style="margin-top: 0;">設定圖片辨識用的 Gemini API KEY</h2>
+            <h2 style="margin-top: 0; text-align: center;">報讀系統進階設定</h2>
+            
+            <!-- 一、API KEY 設定 -->
+            <h3 style="margin-top: 10px; margin-bottom: 10px;">一、API KEY 設定</h3>
             <div style="margin-bottom: 15px;">
                 <label for="apiKeyInput" style="display: block; margin-bottom: 5px; font-weight: bold;">API KEY：</label>
                 <input type="password" id="apiKeyInput" placeholder="請輸入或掃描 QR Code" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; box-sizing: border-box;">
             </div>
             <div style="margin-bottom: 15px;">
-                <button id="scanQRButton" class="button button-success" style="width: 100%; margin-bottom: 10px;">📷 掃描 QR Code</button>
+                <button id="scanQRButton" class="button button-success" style="width: 100%; margin-bottom: 10px; font-size: 16px;">📷 掃描 QR Code</button>
                 <div id="qrScannerContainer" style="display: none; margin-bottom: 15px;">
                     <video id="qrVideo" style="width: 100%; max-width: 400px; border: 2px solid #ccc; border-radius: 5px; display: block; margin: 0 auto;"></video>
                     <canvas id="qrCanvas" style="display: none;"></canvas>
-                    <button id="stopScanButton" class="button button-danger" style="width: 100%; margin-top: 10px;">停止掃描</button>
+                    <button id="stopScanButton" class="button button-danger" style="width: 100%; margin-top: 10px; font-size: 16px;">停止掃描</button>
                 </div>
             </div>
             <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
-                <button id="saveApiKeyButton" class="button button-success" style="flex: 1;">儲存</button>
-                <button id="deleteApiKeyButton" class="button button-danger" style="flex: 1;">刪除 API KEY</button>
-                <button id="cancelApiKeyButton" class="button button-secondary" style="flex: 1;">取消</button>
+                <button id="saveApiKeyButton" class="button button-success" style="flex: 1; font-size: 16px;">儲存</button>
+                <button id="deleteApiKeyButton" class="button button-danger" style="flex: 1; font-size: 16px;">刪除 API KEY</button>
             </div>
             
-            <!-- 分隔線 -->
-            <hr style="margin: 20px 0; border: none; border-top: 2px solid #ccc;">
+            <!-- 二、PDF 快取 -->
+            <h3 style="margin-top: 0; margin-bottom: 10px;">二、PDF 快取</h3>
+            <!-- 清除快取按鈕（移入設定視窗，避免誤觸） -->
+            <div style="margin-bottom: 15px;">
+                <button id="clearCacheButton" class="button button-danger" style="width: 100%; font-size: 16px;">清除 PDF 快取</button>
+            </div>
             
-            <!-- 區塊標記功能 -->
-            <h3 style="margin-top: 0; margin-bottom: 15px;">PDF 標記功能</h3>
-            <div style="display: flex; flex-direction: column; gap: 10px;">
+            <!-- 三、PDF 標記功能 -->
+            <h3 style="margin-top: 0; margin-bottom: 15px;">三、PDF 標記功能</h3>
+            <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
                 <button id="markBlockButton" class="button button-success" style="width: 100%; font-size: 16px;">標記區塊</button>
                 <button id="saveMarkedPdfButton" class="button button-success" style="width: 100%; font-size: 16px; display: none;">保存標記</button>
                 <button id="downloadMarkedPdfButton" class="button button-success" style="width: 100%; font-size: 16px; display: none;">下載PDF</button>
                 <button id="clearMarksButton" class="button button-danger" style="width: 100%; font-size: 16px; display: none;">清除標記</button>
+            </div>
+            
+            <!-- 整個視窗的取消按鈕，三大功能共用，置底置中 -->
+            <div style="text-align: center; margin-bottom: 10px; margin-top: 5px;">
+                <button id="cancelApiKeyButton" class="button button-secondary" style="min-width: 120px; font-size: 16px;">取消</button>
             </div>
         </div>
     </div>
@@ -610,8 +626,6 @@ input[type=range]::-moz-range-thumb {
         <button id="downloadMarkedPdfButtonToolbar" class="button button-success" style="display: none;">下載PDF</button>
         <button id="clearMarksButtonToolbar" class="button button-danger" style="display: none;">清除標記</button>
     </div>
-
-<button id="switchVoiceButton" class="button button-light" style="writing-mode: vertical-rl; text-orientation: upright;z-index: 2000;position: fixed; bottom: 5px;left: 0%; z-index: 1100;color:black;font-size:16px;font-weight:bold;color: rgb(134, 101, 224);font-size: 20px;text-shadow: rgb(204, 204, 204) 0px 1px 0px, rgb(201, 201, 201) 0px 2px 0px;" onclick="redirectToNewPage()">切換載具語音</button>
 <script>
 // 移除 BroadcastChannel 相關代碼，替換為以下實現
 
@@ -653,25 +667,6 @@ function getPageFromHash() {
     const pageFromStorage = localStorage.getItem('currentPage') ? parseInt(localStorage.getItem('currentPage')) : 1;
     
     return pageFromHash || pageFromStorage;
-}
-// 切換網路語音時保留當前檔案和頁數
-function redirectToNewPage() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const params = new URLSearchParams();
-    
-    // 保留所有現有參數
-    if (urlParams.get('file')) params.set('file', urlParams.get('file'));
-    if (urlParams.get('googlesheetid')) params.set('googlesheetid', urlParams.get('googlesheetid'));
-    
-    // 構建新URL
-    let newUrl = 'localvoice.html';
-    if (params.toString()) newUrl += `?${params.toString()}`;
-    
-    // 保留當前頁數
-    const currentPage = getPageFromHash();
-    if (currentPage > 1) newUrl += `#page=${currentPage}`;
-    
-    window.location.href = newUrl;
 }
 // PDF.js 初始化
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
@@ -1405,6 +1400,88 @@ if (clearCacheButton) {
   let isListening = true; // 初始設置為監聽模式
   let isReading = false; // 初始設置為未閱讀狀態
   let audioPlayer = null;
+  let browserVoices = [];
+
+  // 初始化瀏覽器語音列表
+  function initBrowserVoices() {
+      if (!('speechSynthesis' in window)) {
+          console.warn('此瀏覽器不支援本機語音 (speechSynthesis)');
+          return;
+      }
+      browserVoices = window.speechSynthesis.getVoices();
+  }
+
+  // 依語系尋找本機女聲，找不到就退回同語系 / 任意 voice
+  function findLocalVoice(langPrefix) {
+      if (!('speechSynthesis' in window)) {
+          return null;
+      }
+      if (!browserVoices || browserVoices.length === 0) {
+          browserVoices = window.speechSynthesis.getVoices();
+      }
+      if (!browserVoices || browserVoices.length === 0) {
+          return null;
+      }
+      const lowerLang = (langPrefix || '').toLowerCase();
+      // 優先：指定語系 + 名稱像女聲
+      const femaleLike = browserVoices.find(v =>
+          v.lang && v.lang.toLowerCase().startsWith(lowerLang) &&
+          v.name && /female|女|woman|girl|Jenny|Zira|Aria/i.test(v.name)
+      );
+      if (femaleLike) return femaleLike;
+      // 次優先：指定語系任一 voice
+      const sameLang = browserVoices.find(v =>
+          v.lang && v.lang.toLowerCase().startsWith(lowerLang)
+      );
+      if (sameLang) return sameLang;
+      // 最後備援：列表第一個
+      return browserVoices[0];
+  }
+
+  // 使用瀏覽器本機語音朗讀
+  function speakWithLocalTTS(text, ratePercent, langPrefix, callback) {
+      if (!('speechSynthesis' in window)) {
+          console.warn('此瀏覽器不支援本機語音 (speechSynthesis)');
+          if (callback) callback();
+          return;
+      }
+
+      try {
+          window.speechSynthesis.cancel();
+      } catch (e) {
+          console.warn('取消本機語音時發生例外：', e);
+      }
+
+      const voice = findLocalVoice(langPrefix);
+      if (!voice) {
+          console.warn('找不到對應的本機語音，無法朗讀');
+          if (callback) callback();
+          return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.voice = voice;
+
+      // 將 -50% ~ +50% 映射成約 0.5 ~ 1.5 區間
+      const rate = Math.min(3, Math.max(0.1, 1 + (ratePercent / 100)));
+      utterance.rate = rate;
+
+      utterance.onend = () => {
+          if (callback) callback();
+      };
+      utterance.onerror = (e) => {
+          console.error('本機語音朗讀錯誤：', e);
+          if (callback) callback();
+      };
+
+      window.speechSynthesis.speak(utterance);
+  }
+
+  if ('speechSynthesis' in window) {
+      // 某些瀏覽器需要等 voices 載入完成才拿得到
+      window.speechSynthesis.onvoiceschanged = initBrowserVoices;
+      initBrowserVoices();
+  }
           document.addEventListener('DOMContentLoaded', async () => {
     audioPlayer = document.getElementById('audioPlayer');
     
@@ -1469,6 +1546,43 @@ function replaceTextWithSheetData(text, data) {
 
 // 將 sendTextToTTS 定義在全局作用域，以便其他函數可以訪問
 async function sendTextToTTS(selectedText, callback) {
+    // 每次新的發音請求，一開始先「徹底清除」之前的所有發音狀態
+    try {
+        // 1. 停止並清空瀏覽器本機語音佇列
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+
+        // 2. 停止並重設自訂音頻播放器
+        const audioPlayerEl = document.getElementById('audioPlayer');
+        if (audioPlayerEl) {
+            // 停止目前播放
+            audioPlayerEl.pause();
+            audioPlayerEl.currentTime = 0;
+
+            // 清除事件監聽與來源，避免舊的 oncanplay / onended 在背景觸發
+            audioPlayerEl.oncanplay = null;
+            audioPlayerEl.onended = null;
+            audioPlayerEl.onerror = null;
+            audioPlayerEl.onloadstart = null;
+            audioPlayerEl.onloadeddata = null;
+            audioPlayerEl.onprogress = null;
+            audioPlayerEl.onabort = null;
+            audioPlayerEl.onstalled = null;
+            audioPlayerEl.onsuspend = null;
+
+            // 清空來源並強制重新載入，以切斷舊音檔
+            audioPlayerEl.removeAttribute('src');
+            try {
+                audioPlayerEl.load();
+            } catch (e) {
+                console.warn('重載 audioPlayer 時發生例外：', e);
+            }
+        }
+    } catch (e) {
+        console.error('重置發音狀態時發生錯誤：', e);
+    }
+
     // 加強文字清理，移除可能導致 SSML 解析錯誤的特殊字符
     const cleanedText = selectedText
         .replace(/[\r\n]+/g, ' ')
@@ -1498,6 +1612,14 @@ async function sendTextToTTS(selectedText, callback) {
     const voiceName = document.getElementById("voiceSelect").value;
     const rateValueRaw = parseFloat(document.getElementById('speakSpeed').value);
     const rateValue = Math.max(-50, Math.min(50, isNaN(rateValueRaw) ? 0 : rateValueRaw));
+
+    // 若選擇本機語音，改用瀏覽器 speechSynthesis 發音，不呼叫雲端 API
+    if (voiceName === 'local-zh-female' || voiceName === 'local-en-female') {
+        const langPrefix = voiceName === 'local-zh-female' ? 'zh' : 'en';
+        speakWithLocalTTS(filteredText, rateValue, langPrefix, callback);
+        return;
+    }
+
     const rateString = `${rateValue >= 0 ? '+' : ''}${rateValue}%`;
 
     // 構建 API 請求參數
@@ -2023,7 +2145,27 @@ async function readTextInsideFrame() {
     // 清除標記替換緩存
     clearMarkReplacementCache();
     
-    window.speechSynthesis.cancel();
+    // 每次框選朗讀前，先清除之前的朗讀標示與發音狀態
+    try {
+        // 停止瀏覽器語音
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+        // 停止自訂播放器
+        const audioPlayer = document.getElementById('audioPlayer');
+        if (audioPlayer) {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+        }
+        // 清掉所有 my-fra 上的背景色與 spoken 標記
+        const allFraSpans = document.querySelectorAll('#viewerContainer .textLayer my-fra');
+        allFraSpans.forEach(span => {
+            span.style.backgroundColor = '';
+            span.dataset.spoken = '';
+        });
+    } catch (e) {
+        console.error('框選朗讀前清除先前標示時發生錯誤:', e);
+    }
     const frameRect = frame.getBoundingClientRect();
     const viewerContainer = document.getElementById('viewerContainer');
     const pdfCanvas = viewerContainer.querySelector('canvas');
@@ -2344,6 +2486,30 @@ document.addEventListener('mouseup', () => {
         function sendHighlightedText() {
             // 清除標記替換緩存
             clearMarkReplacementCache();
+
+            // 每次觸控選取朗讀前，先清除「上一輪朗讀」留下的標記與發音，保留這一次紅色選取
+            try {
+                // 停止瀏覽器語音
+                if (window.speechSynthesis) {
+                    window.speechSynthesis.cancel();
+                }
+                // 停止自訂播放器
+                const audioPlayer = document.getElementById('audioPlayer');
+                if (audioPlayer) {
+                    audioPlayer.pause();
+                    audioPlayer.currentTime = 0;
+                }
+                // 僅清除先前朗讀（黃色 / spoken）的標示，保留目前使用者以紅色選取的區域
+                const allFraSpans = document.querySelectorAll('#viewerContainer .textLayer my-fra');
+                allFraSpans.forEach(span => {
+                    if (span.style.backgroundColor === 'rgba(255, 255, 0, 0.2)' || span.dataset.spoken === 'true') {
+                        span.style.backgroundColor = '';
+                        span.dataset.spoken = '';
+                    }
+                });
+            } catch (e) {
+                console.error('觸控選取朗讀前清除先前標示時發生錯誤:', e);
+            }
             
             const highlightedText = [];
             const textLayerDivs = document.getElementById('viewerContainer').getElementsByClassName('textLayer');
@@ -2388,7 +2554,7 @@ document.addEventListener('mouseup', () => {
         document.getElementById('clearButton').addEventListener('click', clearHighlights);
         document.getElementById('touchSelectCheckbox').addEventListener('change', function() {
             const isChecked = this.checked;
-            clearHighlights();            
+            clearHighlights();
             document.getElementById('sendButton').style.display = isChecked ? 'block' : 'none';
             document.getElementById('clearButton').style.display = isChecked ? 'block' : 'none';                        
             document.getElementById('select-all-text').style.display = isChecked ? 'none' : 'block';            
@@ -3993,7 +4159,6 @@ async function toggleMarkingMode() {
         const selectAllTextButton = document.getElementById('select-all-text');
         const sendButton = document.getElementById('sendButton');
         const clearButton = document.getElementById('clearButton');
-        const switchVoiceButton = document.getElementById('switchVoiceButton');
         
         if (audioPlayer) {
             audioPlayer.style.bottom = '60px';
@@ -4006,9 +4171,6 @@ async function toggleMarkingMode() {
         }
         if (clearButton) {
             clearButton.style.bottom = '60px';
-        }
-        if (switchVoiceButton) {
-            switchVoiceButton.style.bottom = '60px';
         }
         
         // 啟用標記層的事件和顯示（先設置標記層，再渲染標記）
@@ -4132,7 +4294,6 @@ async function toggleMarkingMode() {
         const selectAllTextButton = document.getElementById('select-all-text');
         const sendButton = document.getElementById('sendButton');
         const clearButton = document.getElementById('clearButton');
-        const switchVoiceButton = document.getElementById('switchVoiceButton');
         
         if (audioPlayer) {
             audioPlayer.style.bottom = '5px';
@@ -4145,9 +4306,6 @@ async function toggleMarkingMode() {
         }
         if (clearButton) {
             clearButton.style.bottom = '5px';
-        }
-        if (switchVoiceButton) {
-            switchVoiceButton.style.bottom = '5px';
         }
         
         // 更新模態視窗中的按鈕
@@ -4192,18 +4350,21 @@ async function toggleMarkingMode() {
             currentMark = null;
         }
         
-        // 禁用標記層的事件（但保留點擊標記區塊的功能）
+        // 禁用標記層的事件與點擊，避免擋住底層文字點擊發音
         const markLayers = document.querySelectorAll('.mark-layer');
         markLayers.forEach(layer => {
             layer.classList.remove('marking-mode');
+            // 讓標記層本身不再攔截任何游標事件
+            layer.style.pointerEvents = 'none';
+            layer.style.display = 'none';
         });
         
-        // 隱藏所有標記區塊的視覺顯示（但保留點擊功能）
+        // 隱藏所有標記區塊的視覺顯示，並一併關閉點擊功能
         const markBlocks = document.querySelectorAll('.mark-block');
         markBlocks.forEach(block => {
-            // 隱藏視覺顯示，但保留元素以便點擊
+            // 隱藏視覺顯示並移除點擊能力，避免干擾文字點擊發音
             block.style.opacity = '0';
-            block.style.pointerEvents = 'auto'; // 保留點擊功能
+            block.style.pointerEvents = 'none';
             block.style.backgroundColor = 'transparent'; // 確保背景透明
             block.style.border = 'none'; // 隱藏邊框
             // 隱藏標籤、編輯按鈕和刪除按鈕
@@ -4228,6 +4389,16 @@ async function toggleMarkingMode() {
             layer.removeEventListener('mousedown', handleViewerMouseDown);
             layer.removeEventListener('touchstart', handleViewerTouchStart);
         });
+
+        // 取消標記後，自動重新載入頁面，確保發音功能與各種事件完整恢復
+        // 使用 setTimeout 確保當前狀態更新完成再重新載入
+        setTimeout(() => {
+            try {
+                window.location.reload();
+            } catch (e) {
+                console.error('重新載入頁面失敗:', e);
+            }
+        }, 100);
     }
 }
 
@@ -4747,6 +4918,27 @@ function finishMark(e) {
 
 // 朗讀標記區塊
 async function readMarkBlock(markId, pageNum) {
+    // 每次朗讀新的區塊前，先清除之前的朗讀標示與發音狀態
+    try {
+        const allFraSpans = document.querySelectorAll('#viewerContainer .textLayer my-fra');
+        allFraSpans.forEach(span => {
+            span.style.backgroundColor = '';
+            span.dataset.spoken = '';
+        });
+        
+        // 同步停止任何正在進行的語音
+        if (window.speechSynthesis) {
+            window.speechSynthesis.cancel();
+        }
+        const audioPlayer = document.getElementById('audioPlayer');
+        if (audioPlayer) {
+            audioPlayer.pause();
+            audioPlayer.currentTime = 0;
+        }
+    } catch (e) {
+        console.error('清除先前朗讀標示時發生錯誤:', e);
+    }
+
     const mark = marks[pageNum]?.find(m => m.id === markId);
     if (!mark) return;
     
@@ -5147,9 +5339,7 @@ async function editMarkReplacementText(markId, pageNum) {
                     <label style="font-weight: bold; font-size: 18px; color: #333; margin: 0;">原始文字：</label>
                     <button id="copyOriginalTextBtn" type="button" onclick="window.copyOriginalToReplacement && window.copyOriginalToReplacement()" style="padding: 6px 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: normal; white-space: nowrap; pointer-events: auto; z-index: 10000; position: relative;">複製到替換文字</button>
                 </div>
-                <div style="width: 95%; margin-left: 0; margin-right: auto; padding: 12px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; min-height: 50px; max-height: 300px; overflow-y: auto; word-wrap: break-word; word-break: break-all; font-size: 15px; line-height: 1.8; color: #555; box-sizing: border-box; white-space: pre-wrap; font-family: inherit;">
-                    ${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
-                </div>
+                <div style="width: 95%; margin-left: 0; margin-right: auto; padding: 12px 12px 12px 0; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; min-height: 50px; max-height: 300px; overflow-y: auto; word-wrap: break-word; word-break: break-all; font-size: 15px; line-height: 1.8; color: #555; box-sizing: border-box; white-space: pre-wrap; font-family: inherit;">${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
             </div>
             <div style="text-align: left; width: 100%; box-sizing: border-box;">
                 <label for="replacementTextInput" style="display: block; margin-bottom: 10px; font-weight: bold; font-size: 18px; color: #333; width: 95%; box-sizing: border-box; margin-left: 0; margin-right: auto;">替換文字（留空則使用原始文字）：</label>
