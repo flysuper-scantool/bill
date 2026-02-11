@@ -5143,7 +5143,10 @@ async function editMarkReplacementText(markId, pageNum) {
         title: '編輯替換文字',
         html: `
             <div style="text-align: left; margin-bottom: 20px; width: 100%; box-sizing: border-box;">
-                <label style="display: block; margin-bottom: 10px; font-weight: bold; font-size: 18px; color: #333; width: 95%; box-sizing: border-box; margin-left: 0; margin-right: auto;">原始文字：</label>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; width: 95%; box-sizing: border-box;">
+                    <label style="font-weight: bold; font-size: 18px; color: #333; margin: 0;">原始文字：</label>
+                    <button id="copyOriginalTextBtn" type="button" onclick="window.copyOriginalToReplacement && window.copyOriginalToReplacement()" style="padding: 6px 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: normal; white-space: nowrap; pointer-events: auto; z-index: 10000; position: relative;">複製到替換文字</button>
+                </div>
                 <div style="width: 95%; margin-left: 0; margin-right: auto; padding: 12px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; min-height: 50px; max-height: 300px; overflow-y: auto; word-wrap: break-word; word-break: break-all; font-size: 15px; line-height: 1.8; color: #555; box-sizing: border-box; white-space: pre-wrap; font-family: inherit;">
                     ${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
                 </div>
@@ -5167,6 +5170,42 @@ async function editMarkReplacementText(markId, pageNum) {
                 input.focus();
                 input.select();
             }
+            
+            // 定義全局函數用於複製原始文字到替換文字框
+            window.copyOriginalToReplacement = function() {
+                console.log('複製函數被調用，displayText:', displayText);
+                const replacementInput = document.getElementById('replacementTextInput');
+                const copyBtn = document.getElementById('copyOriginalTextBtn');
+                if (replacementInput && copyBtn) {
+                    // 將原始文字複製到替換文字框
+                    replacementInput.value = displayText;
+                    replacementInput.focus();
+                    console.log('已複製文字到替換文字框:', displayText);
+                    // 顯示提示
+                    const originalText = copyBtn.textContent;
+                    copyBtn.textContent = '已複製！';
+                    copyBtn.style.backgroundColor = '#28a745';
+                    setTimeout(() => {
+                        copyBtn.textContent = originalText;
+                        copyBtn.style.backgroundColor = '#007bff';
+                    }, 1500);
+                } else {
+                    console.error('找不到替換文字輸入框或複製按鈕');
+                }
+            };
+            
+            // 也使用 addEventListener 作為備用（延遲綁定確保 DOM 已準備好）
+            setTimeout(() => {
+                const copyBtn = document.getElementById('copyOriginalTextBtn');
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.copyOriginalToReplacement();
+                    });
+                    console.log('已綁定複製按鈕事件監聽器');
+                }
+            }, 100);
         },
         preConfirm: () => {
             const input = document.getElementById('replacementTextInput');
