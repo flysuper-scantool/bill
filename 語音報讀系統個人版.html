@@ -4730,13 +4730,17 @@ function finishMark(e) {
                 e.stopPropagation();
                 return;
             }
+            // 在標記模式下不觸發語音，避免錯誤
+            if (isMarkingMode) {
+                return;
+            }
             // 檢查是否剛剛進行了拖拽或調整大小（避免誤觸發朗讀）
             const wasDragging = currentMark.element.classList.contains('dragging');
             if (wasDragging) {
                 // 如果剛剛拖拽過，不觸發朗讀
                 return;
             }
-            // 無論是否在編輯模式，點擊標記區域都觸發朗讀
+            // 點擊標記區域觸發朗讀（非標記模式下）
             e.stopPropagation();
             readMarkBlock(markId, markPageNum);
             // 在朗讀後進行幕後保存
@@ -4883,6 +4887,7 @@ function finishMark(e) {
                 e.stopPropagation();
                 markState.isDragging = true;
                 markState.isResizing = false;
+                markState.hasMoved = false; // 重置移動標記
                 const rect = markBlock.getBoundingClientRect();
                 const markLayerRect = markLayer.getBoundingClientRect();
                 markState.startX = (e.touches ? e.touches[0].clientX : e.clientX);
@@ -4905,6 +4910,11 @@ function finishMark(e) {
                 const currentY = (e.touches ? e.touches[0].clientY : e.clientY);
                 const deltaX = currentX - markState.startX;
                 const deltaY = currentY - markState.startY;
+                
+                // 如果移動距離超過閾值（5px），標記為真的移動了
+                if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                    markState.hasMoved = true;
+                }
                 
                 if (markState.isResizing && markState.resizeDirection) {
                     // 調整大小
@@ -4948,7 +4958,7 @@ function finishMark(e) {
             };
             
             // 處理結束
-            const handleEnd = (e) => {
+            const handleEnd = async (e) => {
                 // 移除事件監聽器（重要：防止事件監聽器殘留）
                 if (moveHandler) {
                     document.removeEventListener('mousemove', moveHandler);
@@ -4962,34 +4972,71 @@ function finishMark(e) {
                     document.removeEventListener('keydown', escapeHandler);
                 }
                 
+                // 檢查是否真的移動了（通過比較最終位置和起始位置）
+                const finalLeft = parseFloat(markBlock.style.left);
+                const finalTop = parseFloat(markBlock.style.top);
+                const finalWidth = parseFloat(markBlock.style.width);
+                const finalHeight = parseFloat(markBlock.style.height);
+                const positionChanged = Math.abs(finalLeft - markState.startLeft) > 1 || 
+                                       Math.abs(finalTop - markState.startTop) > 1;
+                const sizeChanged = Math.abs(finalWidth - markState.startWidth) > 1 || 
+                                   Math.abs(finalHeight - markState.startHeight) > 1;
+                
+                // 記錄是否需要觸發語音（只有在拖拽且沒有移動時）
+                let shouldRead = false;
+                
                 if (markState.isDragging || markState.isResizing) {
-                    // 更新標記數據
-                    const updatedMark = marks[currentMark.pageNum].find(m => m.id === markId);
-                    if (updatedMark) {
-                        updatedMark.x = parseFloat(markBlock.style.left);
-                        updatedMark.y = parseFloat(markBlock.style.top);
-                        updatedMark.width = parseFloat(markBlock.style.width);
-                        updatedMark.height = parseFloat(markBlock.style.height);
-                        
-                        // 如果調整了大小，重新提取文字
-                        if (markState.isResizing) {
-                            updatedMark.text = extractTextFromMark(updatedMark, currentMark.pageNum);
-                            console.log('標記大小已調整，重新提取文字:', updatedMark.text);
+                    // 如果移動了位置或調整了大小，更新標記數據
+                    if (positionChanged || sizeChanged || markState.hasMoved) {
+                        const updatedMark = marks[currentMark.pageNum].find(m => m.id === markId);
+                        if (updatedMark) {
+                            updatedMark.x = finalLeft;
+                            updatedMark.y = finalTop;
+                            updatedMark.width = finalWidth;
+                            updatedMark.height = finalHeight;
+                            
+                            // 如果調整了大小，重新提取文字
+                            if (markState.isResizing && sizeChanged) {
+                                updatedMark.text = extractTextFromMark(updatedMark, currentMark.pageNum);
+                                console.log('標記大小已調整，重新提取文字:', updatedMark.text);
+                            }
+                            
+                            // 靜默保存（不顯示彈窗）
+                            // 等待保存完成後再移除 dragging class，確保不會被重新渲染中斷
+                            await saveMarksToPdf(false);
                         }
-                        
-                        // 靜默保存（不顯示彈窗）
-                        saveMarksToPdf(false);
+                    } else if (markState.isDragging && !markState.isResizing) {
+                        // 如果只是拖拽但沒有移動，標記需要觸發語音
+                        shouldRead = true;
                     }
                 }
+                
                 markState.isDragging = false;
                 markState.isResizing = false;
                 markState.resizeDirection = null;
+                markState.hasMoved = false; // 重置移動標記
+                // 在保存完成後才移除 dragging class，確保保存過程中不會被重新渲染
                 markBlock.classList.remove('dragging');
                 
                 // 清理事件處理器引用
                 moveHandler = null;
                 endHandler = null;
                 escapeHandler = null;
+                
+                // 如果沒有移動，觸發語音朗讀（在清理完成後）
+                // 但不在標記模式下觸發，避免錯誤
+                if (shouldRead && !isMarkingMode) {
+                    // 設置標記，避免 click 事件重複觸發
+                    markBlock.dataset.justHandledDrag = 'true';
+                    // 使用 setTimeout 確保所有清理工作完成後再觸發語音
+                    setTimeout(() => {
+                        readMarkBlock(markId, currentMark.pageNum);
+                        // 清除標記
+                        setTimeout(() => {
+                            delete markBlock.dataset.justHandledDrag;
+                        }, 200);
+                    }, 100);
+                }
             };
             
             // 綁定事件（只在標記區塊上綁定，全局事件在拖拽開始時才綁定）
@@ -5439,7 +5486,7 @@ async function editMarkReplacementText(markId, pageNum) {
                     <label style="font-weight: bold; font-size: 18px; color: #333; margin: 0;">原始文字：</label>
                     <button id="copyOriginalTextBtn" type="button" onclick="window.copyOriginalToReplacement && window.copyOriginalToReplacement()" style="padding: 6px 12px; background-color: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: normal; white-space: nowrap; pointer-events: auto; z-index: 10000; position: relative;">複製到替換文字</button>
                 </div>
-                <div style="width: 95%; margin-left: 0; margin-right: auto; padding: 12px 12px 12px 0; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; min-height: 50px; max-height: 300px; overflow-y: auto; word-wrap: break-word; word-break: break-all; font-size: 15px; line-height: 1.8; color: #555; box-sizing: border-box; white-space: pre-wrap; font-family: inherit;">${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                <div id="originalTextDisplay" style="width: 95%; margin-left: 0; margin-right: auto; padding: 12px 12px 12px 0; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; min-height: 50px; max-height: 300px; overflow-y: auto; word-wrap: break-word; word-break: break-all; font-size: 15px; line-height: 1.8; color: #555; box-sizing: border-box; white-space: pre-wrap; font-family: inherit; cursor: pointer;" title="點擊此處發音">${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
             </div>
             <div style="text-align: left; width: 100%; box-sizing: border-box;">
                 <label for="replacementTextInput" style="display: block; margin-bottom: 10px; font-weight: bold; font-size: 18px; color: #333; width: 95%; box-sizing: border-box; margin-left: 0; margin-right: auto;">替換文字（留空則使用原始文字）：</label>
@@ -5495,6 +5542,23 @@ async function editMarkReplacementText(markId, pageNum) {
                     });
                     console.log('已綁定複製按鈕事件監聽器');
                 }
+                
+                // 為原始文字欄位添加點擊事件，觸發語音朗讀
+                const originalTextDisplay = document.getElementById('originalTextDisplay');
+                if (originalTextDisplay) {
+                    // 添加點擊事件
+                    originalTextDisplay.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        // 使用首頁選擇的發音方式發音
+                        if (displayText && displayText !== '(無文字)') {
+                            sendTextToTTS(displayText);
+                        }
+                    });
+                    console.log('已為原始文字欄位綁定點擊發音事件');
+                } else {
+                    console.warn('找不到原始文字顯示欄位');
+                }
             }, 100);
         },
         preConfirm: () => {
@@ -5517,6 +5581,28 @@ async function editMarkReplacementText(markId, pageNum) {
                 popup: 'swal-high-z-index'
             }
         });
+    }
+    
+    // 編輯視窗關閉後，確保重置所有標記框的狀態，避免影響後續操作
+    // 清除所有可能的 dragging 狀態和殘留的事件監聽器
+    const markLayer = document.querySelector(`.mark-layer[data-page-num="${pageNum}"]`);
+    if (markLayer) {
+        const markBlocks = markLayer.querySelectorAll('.mark-block');
+        markBlocks.forEach(block => {
+            // 移除 dragging class
+            block.classList.remove('dragging');
+            // 清除可能殘留的數據屬性
+            delete block.dataset.justHandledDrag;
+        });
+    }
+    
+    // 確保當前頁面的標記框事件監聽器正常工作
+    // 如果處於標記模式，重新渲染標記以確保事件綁定正確
+    if (isMarkingMode) {
+        // 使用 setTimeout 確保視窗完全關閉後再重新渲染
+        setTimeout(() => {
+            renderMarks();
+        }, 100);
     }
 }
 
@@ -5720,6 +5806,14 @@ function renderMarks() {
         return;
     }
     
+    // 檢查是否有標記正在被拖拽或調整大小
+    // 如果有，則跳過重新渲染，避免中斷用戶操作
+    const activeMarkBlocks = markLayer.querySelectorAll('.mark-block.dragging');
+    if (activeMarkBlocks.length > 0) {
+        console.log('檢測到正在操作的標記，跳過重新渲染以避免中斷操作');
+        return;
+    }
+    
     // 清除舊的標記
     markLayer.innerHTML = '';
     
@@ -5833,7 +5927,8 @@ function renderMarks() {
                 startLeft: 0,
                 startTop: 0,
                 startWidth: 0,
-                startHeight: 0
+                startHeight: 0,
+                hasMoved: false // 追蹤是否真的移動了
             };
             
             // 定義事件處理器（在拖拽/調整大小開始時才綁定）
@@ -5905,6 +6000,7 @@ function renderMarks() {
                 e.stopPropagation();
                 markState.isDragging = true;
                 markState.isResizing = false;
+                markState.hasMoved = false; // 重置移動標記
                 const rect = markBlock.getBoundingClientRect();
                 const markLayerRect = markLayer.getBoundingClientRect();
                 markState.startX = (e.touches ? e.touches[0].clientX : e.clientX);
@@ -5927,6 +6023,11 @@ function renderMarks() {
                 const currentY = (e.touches ? e.touches[0].clientY : e.clientY);
                 const deltaX = currentX - markState.startX;
                 const deltaY = currentY - markState.startY;
+                
+                // 如果移動距離超過閾值（5px），標記為真的移動了
+                if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+                    markState.hasMoved = true;
+                }
                 
                 if (markState.isResizing && markState.resizeDirection) {
                     // 調整大小
@@ -5971,7 +6072,7 @@ function renderMarks() {
             
             
             // 處理結束
-            const handleEnd = (e) => {
+            const handleEnd = async (e) => {
                 // 移除事件監聽器（重要：防止事件監聽器殘留）
                 if (moveHandler2) {
                     document.removeEventListener('mousemove', moveHandler2);
@@ -5985,34 +6086,71 @@ function renderMarks() {
                     document.removeEventListener('keydown', escapeHandler2);
                 }
                 
+                // 檢查是否真的移動了（通過比較最終位置和起始位置）
+                const finalLeft = parseFloat(markBlock.style.left);
+                const finalTop = parseFloat(markBlock.style.top);
+                const finalWidth = parseFloat(markBlock.style.width);
+                const finalHeight = parseFloat(markBlock.style.height);
+                const positionChanged = Math.abs(finalLeft - markState.startLeft) > 1 || 
+                                       Math.abs(finalTop - markState.startTop) > 1;
+                const sizeChanged = Math.abs(finalWidth - markState.startWidth) > 1 || 
+                                   Math.abs(finalHeight - markState.startHeight) > 1;
+                
+                // 記錄是否需要觸發語音（只有在拖拽且沒有移動時）
+                let shouldRead = false;
+                
                 if (markState.isDragging || markState.isResizing) {
-                    // 更新標記數據
-                    const updatedMark = marks[currentPage].find(m => m.id === mark.id);
-                    if (updatedMark) {
-                        updatedMark.x = parseFloat(markBlock.style.left);
-                        updatedMark.y = parseFloat(markBlock.style.top);
-                        updatedMark.width = parseFloat(markBlock.style.width);
-                        updatedMark.height = parseFloat(markBlock.style.height);
-                        
-                        // 如果調整了大小，重新提取文字
-                        if (markState.isResizing) {
-                            updatedMark.text = extractTextFromMark(updatedMark, currentPage);
-                            console.log('標記大小已調整，重新提取文字:', updatedMark.text);
+                    // 如果移動了位置或調整了大小，更新標記數據
+                    if (positionChanged || sizeChanged || markState.hasMoved) {
+                        const updatedMark = marks[currentPage].find(m => m.id === mark.id);
+                        if (updatedMark) {
+                            updatedMark.x = finalLeft;
+                            updatedMark.y = finalTop;
+                            updatedMark.width = finalWidth;
+                            updatedMark.height = finalHeight;
+                            
+                            // 如果調整了大小，重新提取文字
+                            if (markState.isResizing && sizeChanged) {
+                                updatedMark.text = extractTextFromMark(updatedMark, currentPage);
+                                console.log('標記大小已調整，重新提取文字:', updatedMark.text);
+                            }
+                            
+                            // 靜默保存（不顯示彈窗）
+                            // 等待保存完成後再移除 dragging class，確保不會被重新渲染中斷
+                            await saveMarksToPdf(false);
                         }
-                        
-                        // 靜默保存（不顯示彈窗）
-                        saveMarksToPdf(false);
+                    } else if (markState.isDragging && !markState.isResizing) {
+                        // 如果只是拖拽但沒有移動，標記需要觸發語音
+                        shouldRead = true;
                     }
                 }
+                
                 markState.isDragging = false;
                 markState.isResizing = false;
                 markState.resizeDirection = null;
+                markState.hasMoved = false; // 重置移動標記
+                // 在保存完成後才移除 dragging class，確保保存過程中不會被重新渲染
                 markBlock.classList.remove('dragging');
                 
                 // 清理事件處理器引用
                 moveHandler2 = null;
                 endHandler2 = null;
                 escapeHandler2 = null;
+                
+                // 如果沒有移動，觸發語音朗讀（在清理完成後）
+                // 但不在標記模式下觸發，避免錯誤
+                if (shouldRead && !isMarkingMode) {
+                    // 設置標記，避免 click 事件重複觸發
+                    markBlock.dataset.justHandledDrag = 'true';
+                    // 使用 setTimeout 確保所有清理工作完成後再觸發語音
+                    setTimeout(() => {
+                        readMarkBlock(mark.id, currentPage);
+                        // 清除標記
+                        setTimeout(() => {
+                            delete markBlock.dataset.justHandledDrag;
+                        }, 200);
+                    }, 100);
+                }
             };
             
             // 綁定事件（只在標記區塊上綁定，全局事件在拖拽/調整大小開始時才綁定）
@@ -6031,6 +6169,7 @@ function renderMarks() {
         
         // 點擊區塊時朗讀（排除刪除按鈕和編輯按鈕）
         // 無論標記是否可見，都要保留點擊朗讀功能
+        // 但不在標記模式下觸發，避免錯誤
         markBlock.addEventListener('click', (e) => {
             // 如果點擊的是刪除按鈕、編輯按鈕、調整大小控制點或其子元素，不觸發朗讀
             if (e.target.classList.contains('mark-delete') || 
@@ -6041,13 +6180,22 @@ function renderMarks() {
                 e.stopPropagation();
                 return;
             }
-            // 檢查是否剛剛進行了拖拽或調整大小（避免誤觸發朗讀）
-            const wasDragging = markBlock.classList.contains('dragging');
-            if (wasDragging) {
-                // 如果剛剛拖拽過，不觸發朗讀
+            // 在標記模式下不觸發語音，避免錯誤
+            if (isMarkingMode) {
                 return;
             }
-            // 無論是否在編輯模式，點擊標記區域都觸發朗讀
+            // 檢查是否剛剛進行了拖拽或調整大小（避免誤觸發朗讀）
+            const wasDragging = markBlock.classList.contains('dragging');
+            // 檢查是否剛剛處理過拖拽結束（通過數據屬性）
+            const justHandledDrag = markBlock.dataset.justHandledDrag === 'true';
+            if (wasDragging || justHandledDrag) {
+                // 如果剛剛拖拽過或剛剛處理過拖拽結束，不觸發朗讀
+                if (justHandledDrag) {
+                    delete markBlock.dataset.justHandledDrag; // 清除標記
+                }
+                return;
+            }
+            // 點擊標記區域觸發朗讀（非標記模式下）
             e.stopPropagation();
             readMarkBlock(mark.id, currentPage);
         });
