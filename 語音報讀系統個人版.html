@@ -644,7 +644,7 @@ input[type=range]::-moz-range-thumb {
                 >？</button>
             </div>
             <div style="margin-bottom: 15px;">
-                <label for="apiKeyInput" style="display: block; margin-bottom: 5px; font-weight: bold;">API KEY：（用於圖片辨識與AI標記朗讀範圍）</label>
+                <label for="apiKeyInput" style="display: block; margin-bottom: 5px; font-weight: bold;">API KEY：（用於AI圖片辨識與AI標記朗讀範圍）</label>
                 <input type="password" id="apiKeyInput" placeholder="請輸入或掃描 QR Code" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; box-sizing: border-box;">
             </div>
             <div style="margin-bottom: 15px;">
@@ -668,7 +668,7 @@ input[type=range]::-moz-range-thumb {
             </div>
             
             <!-- 三、PDF 標記功能 -->
-            <h3 style="margin-top: 0; margin-bottom: 15px;">三、PDF 標記功能</h3>
+            <h3 style="margin-top: 0; margin-bottom: 15px;">三、PDF 標記功能（點選事先標記的範圍可直接發音）</h3>
             <div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px;">
                 <button id="markBlockButton" class="button button-success" style="width: 100%; font-size: 16px;">標記區塊</button>
                 <button id="saveMarkedPdfButton" class="button button-success" style="width: 100%; font-size: 16px; display: none;">保存標記</button>
@@ -4211,8 +4211,66 @@ function initMarkingFeature() {
 async function toggleMarkingMode() {
     console.log('toggleMarkingMode 被調用，當前 isMarkingMode:', isMarkingMode);
     
-    // 如果進入標記模式，檢查密碼保護
+    // 如果進入標記模式，先檢查是否為本地檔案
     if (!isMarkingMode) {
+        // 檢查是否為本地檔案
+        const urlParams = new URLSearchParams(window.location.search);
+        const fileParam = urlParams.get('file');
+        
+        // 判斷檔案類型
+        if (fileParam) {
+            const isLocalPdfFile = fileParam.toLowerCase().endsWith('.pdf');
+            const isNetworkFile = fileParam.startsWith('http://') || fileParam.startsWith('https://');
+            
+            // 如果不是本地PDF檔案（是雲端檔案或網路檔案），顯示警告
+            if (!isLocalPdfFile || isNetworkFile) {
+                await Swal.fire({
+                    icon: 'warning',
+                    title: '標記功能限制',
+                    html: `
+                        <div style="text-align: left;">
+                            <p style="margin-bottom: 15px; font-size: 16px; line-height: 1.6;">
+                                <strong>標記功能僅限本地PDF檔案使用</strong>
+                            </p>
+                            <p style="margin-bottom: 10px; font-size: 14px; line-height: 1.6; color: #666;">
+                                • 目前開啟的是雲端檔案，無法進行標記編輯
+                            </p>
+                            <p style="margin-bottom: 15px; font-size: 14px; line-height: 1.6; color: #666;">
+                                • 如需使用標記功能，必須在左上角選擇本地檔案，才能進行標記
+                            </p>
+                            <p style="margin-bottom: 0; font-size: 14px; line-height: 1.6; color: #666;">
+                                • 標記完成後，必須先「匯出PDF」才能保存標記
+                            </p>
+							<p style="margin-bottom: 0; font-size: 14px; line-height: 1.6; color: #666;">
+                                • 使用本系統可讀取本地或雲端已標記的PDF檔案進行發音
+                            </p>
+                        </div>
+                    `,
+                    confirmButtonText: '我知道了',
+                    showCancelButton: false,
+                    customClass: {
+                        popup: 'swal-high-z-index'
+                    },
+                    width: '500px'
+                });
+                return; // 不進入標記模式
+            }
+        }
+        
+        // 如果沒有 fileParam，可能是直接上傳的本地檔案，檢查是否有 pdfDoc
+        if (!pdfDoc) {
+            Swal.fire({
+                icon: 'warning',
+                title: '無法標記',
+                text: '請先載入PDF檔案',
+                customClass: {
+                    popup: 'swal-high-z-index'
+                }
+            });
+            return;
+        }
+        
+        // 檢查密碼保護
         const hasAccess = await checkPasswordProtection();
         console.log('密碼檢查結果:', hasAccess);
         if (!hasAccess) {
