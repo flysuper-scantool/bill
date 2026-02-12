@@ -5489,7 +5489,10 @@ async function editMarkReplacementText(markId, pageNum) {
                 <div id="originalTextDisplay" style="width: 95%; margin-left: 0; margin-right: auto; padding: 12px 12px 12px 0; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 6px; min-height: 50px; max-height: 300px; overflow-y: auto; word-wrap: break-word; word-break: break-all; font-size: 15px; line-height: 1.8; color: #555; box-sizing: border-box; white-space: pre-wrap; font-family: inherit; cursor: pointer;" title="點擊此處發音">${displayText.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
             </div>
             <div style="text-align: left; width: 100%; box-sizing: border-box;">
-                <label for="replacementTextInput" style="display: block; margin-bottom: 10px; font-weight: bold; font-size: 18px; color: #333; width: 95%; box-sizing: border-box; margin-left: 0; margin-right: auto;">替換文字（留空則使用原始文字）：</label>
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; width: 95%; box-sizing: border-box;">
+                    <label for="replacementTextInput" style="font-weight: bold; font-size: 18px; color: #333; margin: 0;">替換文字（留空則使用原始文字）：</label>
+                    <button id="previewReplacementTextBtn" type="button" style="padding: 6px 12px; background-color: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: normal; white-space: nowrap; pointer-events: auto; z-index: 10000; position: relative;">替換文字試聽</button>
+                </div>
                 <textarea id="replacementTextInput" class="swal2-textarea" placeholder="輸入替換文字" style="width: 95%; margin-left: 0; margin-right: auto; min-height: 80px; max-height: 200px; resize: vertical; box-sizing: border-box; font-size: 15px; padding: 12px; border: 1px solid #ccc; border-radius: 6px; word-wrap: break-word; word-break: break-word; white-space: pre-wrap; overflow-wrap: break-word; overflow-x: hidden; overflow-y: auto; line-height: 1.6; font-family: inherit;">${(mark.replacementText || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</textarea>
             </div>
         `,
@@ -5558,6 +5561,46 @@ async function editMarkReplacementText(markId, pageNum) {
                     console.log('已為原始文字欄位綁定點擊發音事件');
                 } else {
                     console.warn('找不到原始文字顯示欄位');
+                }
+                
+                // 為試聽按鈕綁定點擊事件，試聽替換文字欄位的內容
+                const previewBtn = document.getElementById('previewReplacementTextBtn');
+                if (previewBtn) {
+                    previewBtn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const replacementInput = document.getElementById('replacementTextInput');
+                        if (replacementInput) {
+                            const replacementText = replacementInput.value.trim();
+                            // 如果替換文字為空，使用原始文字
+                            const textToRead = replacementText || displayText;
+                            if (textToRead && textToRead !== '(無文字)') {
+                                // 使用首頁選擇的發音方式發音
+                                sendTextToTTS(textToRead);
+                                // 顯示提示
+                                const originalText = previewBtn.textContent;
+                                previewBtn.textContent = '播放中...';
+                                previewBtn.style.backgroundColor = '#ffc107';
+                                // 注意：這裡無法準確知道播放何時結束，所以設置一個較長的延遲
+                                setTimeout(() => {
+                                    previewBtn.textContent = originalText;
+                                    previewBtn.style.backgroundColor = '#28a745';
+                                }, 3000);
+                            } else {
+                                // 如果沒有文字，顯示提示
+                                const originalText = previewBtn.textContent;
+                                previewBtn.textContent = '無文字';
+                                previewBtn.style.backgroundColor = '#dc3545';
+                                setTimeout(() => {
+                                    previewBtn.textContent = originalText;
+                                    previewBtn.style.backgroundColor = '#28a745';
+                                }, 1500);
+                            }
+                        }
+                    });
+                    console.log('已為試聽按鈕綁定點擊事件');
+                } else {
+                    console.warn('找不到試聽按鈕');
                 }
             }, 100);
         },
