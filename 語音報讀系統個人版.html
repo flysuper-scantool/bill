@@ -1582,12 +1582,25 @@ if (clearCacheButton) {
       const isChinese = lowerLang === 'zh' || lowerLang.startsWith('zh');
       
       if (isChinese) {
-          // 優先：繁體中文（zh-TW）女聲
+          // 最優先：美佳（Mei-Jia）— 正統中文發音
+          for (const langCode of chineseLangCodes) {
+              const meiJia = browserVoices.find(v => {
+                  const vLang = (v.lang || '').toLowerCase();
+                  const isLangMatch = vLang === langCode || vLang.startsWith(langCode);
+                  const isMeiJia = v.name && /美佳|Mei-?Jia|MeiJia/i.test(v.name);
+                  return isLangMatch && isMeiJia;
+              });
+              if (meiJia) {
+                  console.log('找到中文語音（美佳）:', meiJia.name, meiJia.lang);
+                  return meiJia;
+              }
+          }
+          // 次優先：其他繁體中文女聲（Yuna、Ting-Ting 等）
           for (const langCode of chineseLangCodes) {
               const zhFemale = browserVoices.find(v => {
                   const vLang = (v.lang || '').toLowerCase();
                   const isLangMatch = vLang === langCode || vLang.startsWith(langCode);
-                  const isFemale = v.name && /female|女|woman|girl|Mei-Jia|Yuna|Ting-Ting|Sin-Ji/i.test(v.name);
+                  const isFemale = v.name && /female|女|woman|girl|Yuna|Ting-Ting|Sin-Ji/i.test(v.name);
                   return isLangMatch && isFemale;
               });
               if (zhFemale) {
@@ -1596,7 +1609,7 @@ if (clearCacheButton) {
               }
           }
           
-          // 次優先：任何中文語音（優先 zh-TW）
+          // 再次：任何中文語音（優先 zh-TW）
           for (const langCode of chineseLangCodes) {
               const zhVoice = browserVoices.find(v => {
                   const vLang = (v.lang || '').toLowerCase();
