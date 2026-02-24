@@ -300,9 +300,9 @@
             </div>
 
             <input type="password" id="apiKeyInput" placeholder="貼上您的 API Key (AIza...)" class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
-            <div class="flex gap-3 justify-end pt-2">
+            <div class="flex gap-3 justify-end pt-2 flex-wrap">
                 <button id="closeApiModal" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition">關閉</button>
-                <button id="deleteApiKey" class="hidden px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition">刪除 Key</button>
+                <button id="deleteApiKey" class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition border border-red-200">刪除 API Key</button>
                 <button id="saveApiKey" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition">儲存</button>
             </div>
         </div>
@@ -778,11 +778,9 @@
         async function checkApiKey() {
             const key = await getSetting('gemini_api_key');
             if (key) {
-                apiKeyInput.value = key; 
-                deleteApiKeyBtn.classList.remove('hidden');
+                apiKeyInput.value = key;
             } else {
                 apiKeyInput.value = '';
-                deleteApiKeyBtn.classList.add('hidden');
             }
             return key;
         }
@@ -826,14 +824,17 @@
             await saveSetting('gemini_api_key', key);
             showToast('API Key 已儲存');
             apiModal.classList.add('hidden');
-            deleteApiKeyBtn.classList.remove('hidden');
         });
 
         deleteApiKeyBtn.addEventListener('click', async () => {
-            if(confirm('確定要刪除儲存的 API Key 嗎？')) {
+            const key = await getSetting('gemini_api_key');
+            if (!key) {
+                showToast('尚無儲存的 API Key', true);
+                return;
+            }
+            if(confirm('確定要刪除儲存的 API Key 嗎？之後需重新輸入才能使用 AI 功能。')) {
                 await deleteSetting('gemini_api_key');
                 apiKeyInput.value = '';
-                deleteApiKeyBtn.classList.add('hidden');
                 showToast('API Key 已移除');
             }
         });
@@ -1532,9 +1533,13 @@
 
         // Initialize
         (async () => {
-            await checkApiKey();
+            const hasKey = await checkApiKey();
             await loadCategories(); // Load cats first
             await renderList();
+            // API Key 空白時自動顯示設定欄位
+            if (!hasKey || !String(hasKey).trim()) {
+                apiModal.classList.remove('hidden');
+            }
         })();
 
     </script>
